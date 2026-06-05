@@ -1,3 +1,4 @@
+mod appinfo;
 mod steam;
 mod store;
 mod vdfedit;

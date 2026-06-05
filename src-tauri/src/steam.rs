@@ -15,7 +15,7 @@
 use crate::vdfedit;
 use keyvalues_parser::{parse, Value, Vdf};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -369,6 +369,15 @@ pub fn scan() -> Result<LibraryDto, String> {
         }
     }
 
+    // Resolve names for owned/uninstalled games (no appmanifest) from appinfo.vdf.
+    let uninstalled: HashSet<u32> = appids
+        .iter()
+        .filter(|a| !installed.contains_key(*a))
+        .filter_map(|a| a.parse::<u32>().ok())
+        .filter(|n| *n != 0 && *n < 2_147_483_648)
+        .collect();
+    let resolved = crate::appinfo::resolve_names(&uninstalled);
+
     let mut games: Vec<GameDto> = Vec::new();
     for appid in appids {
         // Skip appid "0" (the global-default compat bucket) and non-Steam shortcuts
@@ -381,7 +390,11 @@ pub fn scan() -> Result<LibraryDto, String> {
         let inst = installed.get(&appid);
         let name = match inst {
             Some(i) => i.name.clone(),
-            None => format!("App {appid}"),
+            None => appid
+                .parse::<u32>()
+                .ok()
+                .and_then(|n| resolved.get(&n).cloned())
+                .unwrap_or_else(|| format!("App {appid}")),
         };
         if is_noise_app(&appid, &name) {
             continue;

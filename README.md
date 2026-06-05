@@ -34,5 +34,8 @@ npm run tauri build    # release bundle
 - **Milestone 3 (done):** preset/option persistence — `store.rs` loads/saves
   `~/.config/manifold/presets.json` (seeded with defaults on first run, atomic writes);
   the frontend loads on startup and persists on every preset/option edit.
+- **Names for owned/uninstalled games (done):** `appinfo.rs` parses Steam's local binary
+  `appcache/appinfo.vdf` (v27/28/29, string-table aware) to resolve appid → name, so games
+  without an `appmanifest` show their real name instead of `App <id>` (offline, no network).
 - **Next:** the structured option builder (categorized Proton/MangoHud/DXVK menu with
   descriptions), then stretch items (ProtonDB links, preset sharing).
