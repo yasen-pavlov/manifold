@@ -83,15 +83,55 @@ fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_default())
 }
 
-/// The Steam root we read userdata/config from. ~/.steam/steam and
-/// ~/.local/share/Steam are usually the same tree (symlinked).
-fn steam_root() -> Option<PathBuf> {
-    let candidates = [
+fn root_is_valid(p: &Path) -> bool {
+    p.join("config/config.vdf").exists() || p.join("steamapps").is_dir()
+}
+
+fn candidate_roots() -> Vec<PathBuf> {
+    vec![
         home().join(".steam/steam"),
         home().join(".local/share/Steam"),
         home().join(".steam/root"),
-    ];
-    candidates.into_iter().find(|p| p.join("config/config.vdf").exists() || p.join("steamapps").is_dir())
+    ]
+}
+
+/// The Steam root we read userdata/config from. Honors the settings override
+/// (if valid), otherwise auto-detects. ~/.steam/steam and ~/.local/share/Steam
+/// are usually the same tree (symlinked).
+fn steam_root() -> Option<PathBuf> {
+    let override_root = crate::settings::current().steam_root;
+    let override_root = override_root.trim();
+    if !override_root.is_empty() {
+        let p = PathBuf::from(override_root);
+        if root_is_valid(&p) {
+            return Some(p);
+        }
+    }
+    candidate_roots().into_iter().find(|p| root_is_valid(p))
+}
+
+#[derive(Serialize, Debug)]
+pub struct RootCandidate {
+    pub path: String,
+    pub valid: bool,
+}
+
+/// Steam roots found on disk, for the settings UI to offer as choices.
+pub fn discover_roots() -> Vec<RootCandidate> {
+    let mut out = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for p in candidate_roots() {
+        if !p.exists() {
+            continue;
+        }
+        let path = p.to_string_lossy().to_string();
+        if seen.contains(&path) {
+            continue;
+        }
+        seen.push(path.clone());
+        out.push(RootCandidate { valid: root_is_valid(&p), path });
+    }
+    out
 }
 
 /// userdata/<id>/config/localconfig.vdf — pick the id dir that actually has one.
@@ -597,14 +637,17 @@ pub fn close_steam() -> Result<LibraryDto, String> {
     Err("Steam did not shut down within 30s".into())
 }
 
-/// Launch Steam (detached, `-silent`) and wait briefly for it to come up.
+/// Launch Steam (detached) and wait briefly for it to come up. Uses `-silent`
+/// (start minimized to tray) when enabled in settings.
 pub fn start_steam() -> Result<LibraryDto, String> {
     if steam_running() {
         return scan();
     }
-    Command::new("steam")
-        .arg("-silent")
-        .stdin(Stdio::null())
+    let mut cmd = Command::new("steam");
+    if crate::settings::current().silent_start {
+        cmd.arg("-silent");
+    }
+    cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()

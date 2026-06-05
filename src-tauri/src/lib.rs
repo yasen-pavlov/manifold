@@ -1,9 +1,11 @@
 mod appinfo;
+mod settings;
 mod steam;
 mod store;
 mod vdfedit;
 
-use steam::LibraryDto;
+use settings::Settings;
+use steam::{LibraryDto, RootCandidate};
 use store::PresetStore;
 
 #[tauri::command]
@@ -34,6 +36,21 @@ fn start_steam() -> Result<LibraryDto, String> {
 }
 
 #[tauri::command]
+fn load_settings() -> Result<Settings, String> {
+    settings::load()
+}
+
+#[tauri::command]
+fn save_settings(settings: Settings) -> Result<(), String> {
+    settings::save(settings)
+}
+
+#[tauri::command]
+fn discover_steam_roots() -> Vec<RootCandidate> {
+    steam::discover_roots()
+}
+
+#[tauri::command]
 fn load_presets() -> Result<PresetStore, String> {
     store::load()
 }
@@ -53,6 +70,9 @@ pub fn run() {
             set_compat_tool,
             close_steam,
             start_steam,
+            load_settings,
+            save_settings,
+            discover_steam_roots,
             load_presets,
             save_presets
         ])

@@ -282,6 +282,76 @@ function SteamConfirm({ count, onChoose }) {
   );
 }
 
+/* ============ Settings sheet ============ */
+function SettingsSheet({ settings, effectiveRoot, discovered, onSave, onClose }) {
+  const [root, setRoot] = uS(settings.steam_root || '');
+  const [silent, setSilent] = uS(settings.silent_start !== false);
+  const trimmed = root.trim();
+  const usingAuto = trimmed === '';
+  return (
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className="sheet" style={{ width: 520 }} role="dialog">
+        <div className="sheet-head">
+          <div>
+            <div className="sh-title"><Icon name="settings" size={17} style={{ color: 'var(--acc)' }} />Settings</div>
+            <div className="sh-sub">Manifold preferences · stored in <span className="mono">~/.config/manifold/settings.json</span></div>
+          </div>
+          <button className="icon-btn sheet-x" onClick={onClose}><Icon name="x" size={15} /></button>
+        </div>
+
+        <div className="sheet-body">
+          <div className="section-label"><Icon name="folder" size={13} />Steam installation<span className="sl-line" /></div>
+          <div className="note info" style={{ marginBottom: 12 }}>
+            <span className="n-ico" style={{ color: 'var(--tx-lo)' }}><Icon name="info" size={15} /></span>
+            <div>Currently using <span className="mono">{effectiveRoot || '—'}</span>{usingAuto ? <span style={{ color: 'var(--tx-faint)' }}> (auto-detected)</span> : null}</div>
+          </div>
+
+          <div className="field">
+            <label>Steam path override</label>
+            <input className="mono" value={root} onChange={(e) => setRoot(e.target.value)} spellCheck={false}
+              placeholder={`Auto-detect${effectiveRoot ? ` (${effectiveRoot})` : ''}`} />
+            <div className="hint">Leave empty to auto-detect. Point at a Steam root (the folder containing <span className="mono">config/</span> and <span className="mono">steamapps/</span>).</div>
+          </div>
+
+          {discovered.length > 0 && (
+            <div className="field">
+              <label>Detected</label>
+              <div className="filters" style={{ flexWrap: 'wrap' }}>
+                {discovered.map((d) => (
+                  <button key={d.path} className={'chip' + (trimmed === d.path ? ' on' : '')} onClick={() => setRoot(d.path)} title={d.valid ? 'Valid Steam root' : 'Folder exists but no config/steamapps found'}>
+                    <span className="mono" style={{ fontSize: 11 }}>{d.path}</span>
+                    <span className="c-ct" style={{ color: d.valid ? 'var(--ok)' : 'var(--warn)' }}>{d.valid ? '✓' : '?'}</span>
+                  </button>
+                ))}
+                <button className={'chip' + (usingAuto ? ' on' : '')} onClick={() => setRoot('')}>Auto-detect</button>
+              </div>
+            </div>
+          )}
+
+          <div className="section-label" style={{ marginTop: 18 }}><Icon name="power" size={13} />Steam launch<span className="sl-line" /></div>
+          <div className="field">
+            <label>Starting Steam</label>
+            <div className="seg">
+              <button className={silent ? 'on' : ''} onClick={() => setSilent(true)}>Silent (tray)</button>
+              <button className={!silent ? 'on' : ''} onClick={() => setSilent(false)}>Normal window</button>
+            </div>
+            <div className="hint">{silent ? 'Start Steam minimized to the tray (steam -silent).' : 'Start Steam with its window shown.'}</div>
+          </div>
+        </div>
+
+        <div className="sheet-foot">
+          <div style={{ flex: 1 }} />
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent })}>
+            <Icon name="check" size={14} />Save
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ============ Toasts ============ */
 function Toasts({ toasts, onDismiss, onUndo }) {
   return (
@@ -317,4 +387,4 @@ function EmptyState({ onRetry }) {
   );
 }
 
-export { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, Toasts, EmptyState, Popover, composeLaunch };
+export { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, Toasts, EmptyState, Popover, composeLaunch };

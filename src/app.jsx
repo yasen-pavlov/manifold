@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./icons.jsx";
 import { GAMES, PRESETS, OPTIONS, compatName, setCompatTools } from "./data.jsx";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table.jsx";
-import { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, Toasts, EmptyState } from "./surfaces.jsx";
+import { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, Toasts, EmptyState } from "./surfaces.jsx";
 import { PresetsManager, ItemEditor, BackupsView, CommandPalette } from "./presets.jsx";
 
 let _tid = 0;
@@ -34,6 +34,10 @@ function App() {
   const [toasts, setToasts] = aS([]);
   const [steamPrompt, setSteamPrompt] = aS(null); // { count, run(mode) } | null
   const [steamBusy, setSteamBusy] = aS(false);
+  const [settings, setSettings] = aS({ steam_root: '', silent_start: true });
+  const [settingsOpen, setSettingsOpen] = aS(false);
+  const [discoveredRoots, setDiscoveredRoots] = aS([]);
+  const [steamRoot, setSteamRoot] = aS('');
 
   /* ---------- toasts ---------- */
   const toast = aC((t) => {
@@ -93,6 +97,7 @@ function App() {
     setCompatTools(lib.compat_tools || []);
     setGames(Array.isArray(lib.games) ? lib.games : []);
     setSteamRunning(!!lib.steam_running);
+    if (lib.steam_root) setSteamRoot(lib.steam_root);
   };
   const plural = (n) => `${n} game${n !== 1 ? 's' : ''}`;
 
@@ -255,6 +260,7 @@ function App() {
     c.push({ id: 'n_opt', group: 'Create', icon: 'plus', name: 'New single option', run: () => { setTab('presets'); setEditor({ kind: 'option' }); } });
     c.push({ id: 'steam_ctl', group: 'Steam', icon: 'power', name: steamRunning ? 'Close Steam' : 'Start Steam', run: () => (steamRunning ? closeSteam() : startSteam()) });
     c.push({ id: 'l_rescan', group: 'Library', icon: 'refresh', name: 'Re-scan library', run: () => loadLibrary() });
+    c.push({ id: 'settings', group: 'Go to', icon: 'settings', name: 'Settings', run: () => setSettingsOpen(true) });
     return c;
   }, [targets, steamRunning, empty, games, counts]);
 
@@ -266,6 +272,7 @@ function App() {
       setCompatTools(lib.compat_tools || []);
       setGames(Array.isArray(lib.games) ? lib.games : []);
       setSteamRunning(!!lib.steam_running);
+      if (lib.steam_root) setSteamRoot(lib.steam_root);
       setBannerDismissed(false);
       setEmpty((lib.games || []).length === 0);
       setScanError(null);
@@ -302,6 +309,34 @@ function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  /* ---------- load settings + discovered Steam roots ---------- */
+  aE(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await invoke('load_settings');
+        if (!cancelled && s) setSettings(s);
+        const roots = await invoke('discover_steam_roots');
+        if (!cancelled && Array.isArray(roots)) setDiscoveredRoots(roots);
+      } catch (e) {
+        // not under Tauri — keep defaults
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const saveSettings = async (next) => {
+    setSettings(next);
+    setSettingsOpen(false);
+    try {
+      await invoke('save_settings', { settings: next });
+      toast({ kind: 'ok', title: 'Settings saved' });
+      await loadLibrary({ quiet: true }); // re-scan in case the Steam path changed
+    } catch (e) {
+      toast({ kind: 'err', title: 'Could not save settings', sub: String(e) });
+    }
+  };
 
   /* ---------- dev: deep-link to a surface for screenshots ---------- */
   aE(() => {
@@ -362,6 +397,7 @@ function App() {
         </div>
         <div className="tb-spacer" />
         <button className="tb-btn" onClick={() => setCmdk(true)}><Icon name="command" size={14} />Search<span className="kbd">⌘K</span></button>
+        <button className="icon-btn" title="Settings" onClick={() => setSettingsOpen(true)}><Icon name="settings" size={15} /></button>
       </div>
 
       {showBanner && <SteamBanner onCloseSteam={closeSteam} busy={steamBusy} onDismiss={() => setBannerDismissed(true)} />}
@@ -418,6 +454,15 @@ function App() {
       {editor && <ItemEditor item={editor} onSave={saveItem} onClose={() => setEditor(null)} />}
       {cmdk && <CommandPalette commands={commands} onClose={() => setCmdk(false)} />}
       {steamPrompt && <SteamConfirm count={steamPrompt.count} onChoose={steamPrompt.run} />}
+      {settingsOpen && (
+        <SettingsSheet
+          settings={settings}
+          effectiveRoot={steamRoot}
+          discovered={discoveredRoots}
+          onSave={saveSettings}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
 
       <Toasts toasts={toasts} onDismiss={dismissToast} onUndo={onUndo} />
     </div>

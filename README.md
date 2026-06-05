@@ -40,5 +40,8 @@ npm run tauri build    # release bundle
 - **Steam process control (done):** `close_steam` (`steam -shutdown` + wait) / `start_steam`
   commands. The banner/footer expose Close/Start, and applying changes while Steam is running
   prompts to close → apply → (optionally) reopen Steam.
+- **Settings (done):** `settings.rs` persists `~/.config/manifold/settings.json`. A Settings
+  sheet (titlebar gear / command palette) configures the **Steam path** (override or
+  auto-detect from discovered roots) and **silent start** (`steam -silent`). Designed to grow.
 - **Next:** the structured option builder (categorized Proton/MangoHud/DXVK menu with
   descriptions), then stretch items (ProtonDB links, preset sharing).
