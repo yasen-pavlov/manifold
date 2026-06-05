@@ -1,7 +1,6 @@
 // app.jsx - Manifold main: state, routing, window chrome, keyboard
 import React, { useState as aS, useEffect as aE, useMemo as aM, useCallback as aC } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Icon } from "./icons.jsx";
 import { GAMES, PRESETS, OPTIONS, compatName, setCompatTools } from "./data.jsx";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table.jsx";
@@ -15,8 +14,11 @@ function resolveControlsSide(pref) {
   return OS === 'mac' ? 'left' : 'right'; // auto
 }
 const clampScale = (v) => Math.min(2, Math.max(0.6, Math.round((Number(v) || 1) * 100) / 100));
+// Use CSS `zoom` (a layout zoom) rather than the webview zoom API: it re-lays-out and
+// re-rasterizes text/SVG at the target size, so scaling stays crisp instead of being a
+// bitmap upscale (which looks blurry on WebKitGTK).
 function applyZoom(scale) {
-  try { getCurrentWebview().setZoom(clampScale(scale)).catch(() => {}); } catch { /* not under Tauri */ }
+  try { document.documentElement.style.zoom = String(clampScale(scale)); } catch { /* no-op */ }
 }
 import { PresetsManager, ItemEditor, BackupsView, CommandPalette } from "./presets.jsx";
 
