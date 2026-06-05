@@ -15,6 +15,10 @@ fn default_window_controls() -> String {
     "auto".into()
 }
 
+fn default_ui_scale() -> f64 {
+    1.0
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Settings {
     /// Explicit Steam root override. Empty string => auto-detect.
@@ -26,6 +30,9 @@ pub struct Settings {
     /// Window-control button placement: "auto" | "left" | "right" | "hidden".
     #[serde(default = "default_window_controls")]
     pub window_controls: String,
+    /// Interface zoom factor (1.0 = 100%).
+    #[serde(default = "default_ui_scale")]
+    pub ui_scale: f64,
 }
 
 impl Default for Settings {
@@ -34,6 +41,7 @@ impl Default for Settings {
             steam_root: String::new(),
             silent_start: true,
             window_controls: default_window_controls(),
+            ui_scale: default_ui_scale(),
         }
     }
 }

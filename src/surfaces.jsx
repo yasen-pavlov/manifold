@@ -312,13 +312,19 @@ function SteamConfirm({ count, onChoose }) {
 }
 
 /* ============ Settings sheet ============ */
-function SettingsSheet({ settings, effectiveRoot, discovered, onSave, onClose }) {
+function SettingsSheet({ settings, effectiveRoot, discovered, onPreviewScale, onSave, onClose }) {
   const [root, setRoot] = uS(settings.steam_root || '');
   const [silent, setSilent] = uS(settings.silent_start !== false);
   const [wc, setWc] = uS(settings.window_controls || 'auto');
+  const [scale, setScale] = uS(typeof settings.ui_scale === 'number' ? settings.ui_scale : 1);
   const trimmed = root.trim();
   const usingAuto = trimmed === '';
   const WC_OPTS = [['auto', 'Auto'], ['left', 'Left'], ['right', 'Right'], ['hidden', 'Hidden']];
+  const setScaleLive = (v) => {
+    const c = Math.min(2, Math.max(0.6, Math.round(v * 100) / 100));
+    setScale(c);
+    if (onPreviewScale) onPreviewScale(c);
+  };
   return (
     <>
       <div className="scrim" onClick={onClose} />
@@ -381,15 +387,27 @@ function SettingsSheet({ settings, effectiveRoot, discovered, onSave, onClose })
             <div className="hint">
               The native title bar is off; these are Manifold's own controls.
               <b> Auto</b> puts them where your OS does (macOS left, Linux/Windows right).
-              <b> Hidden</b> removes them (use your compositor - e.g. Hyprland - to manage the window).
+              <b> Hidden</b> removes them (use your compositor, e.g. Hyprland, to manage the window).
             </div>
+          </div>
+
+          <div className="section-label" style={{ marginTop: 18 }}><Icon name="eye" size={13} />Interface<span className="sl-line" /></div>
+          <div className="field">
+            <label>Interface scale</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button className="btn" onClick={() => setScaleLive(scale - 0.1)} disabled={scale <= 0.6} title="Smaller"><Icon name="minus" size={14} /></button>
+              <span className="mono tnum" style={{ minWidth: 54, textAlign: 'center', fontSize: 13 }}>{Math.round(scale * 100)}%</span>
+              <button className="btn" onClick={() => setScaleLive(scale + 0.1)} disabled={scale >= 2} title="Larger"><Icon name="plus" size={14} /></button>
+              <button className="btn ghost" onClick={() => setScaleLive(1)} disabled={Math.round(scale * 100) === 100}>Reset</button>
+            </div>
+            <div className="hint">Zoom the whole interface (60-200%). Previews live; Cancel reverts.</div>
           </div>
         </div>
 
         <div className="sheet-foot">
           <div style={{ flex: 1 }} />
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc })}>
+          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scale })}>
             <Icon name="check" size={14} />Save
           </button>
         </div>

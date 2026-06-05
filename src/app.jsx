@@ -1,6 +1,7 @@
 // app.jsx - Manifold main: state, routing, window chrome, keyboard
 import React, { useState as aS, useEffect as aE, useMemo as aM, useCallback as aC } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Icon } from "./icons.jsx";
 import { GAMES, PRESETS, OPTIONS, compatName, setCompatTools } from "./data.jsx";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table.jsx";
@@ -12,6 +13,10 @@ function resolveControlsSide(pref) {
   if (pref === 'hidden') return 'none';
   if (pref === 'left' || pref === 'right') return pref;
   return OS === 'mac' ? 'left' : 'right'; // auto
+}
+const clampScale = (v) => Math.min(2, Math.max(0.6, Math.round((Number(v) || 1) * 100) / 100));
+function applyZoom(scale) {
+  try { getCurrentWebview().setZoom(clampScale(scale)).catch(() => {}); } catch { /* not under Tauri */ }
 }
 import { PresetsManager, ItemEditor, BackupsView, CommandPalette } from "./presets.jsx";
 
@@ -42,7 +47,7 @@ function App() {
   const [toasts, setToasts] = aS([]);
   const [steamPrompt, setSteamPrompt] = aS(null); // { count, run(mode) } | null
   const [steamBusy, setSteamBusy] = aS(false);
-  const [settings, setSettings] = aS({ steam_root: '', silent_start: true, window_controls: 'auto' });
+  const [settings, setSettings] = aS({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 1 });
   const [settingsOpen, setSettingsOpen] = aS(false);
   const [discoveredRoots, setDiscoveredRoots] = aS([]);
   const [steamRoot, setSteamRoot] = aS('');
@@ -324,7 +329,7 @@ function App() {
     (async () => {
       try {
         const s = await invoke('load_settings');
-        if (!cancelled && s) setSettings(s);
+        if (!cancelled && s) { setSettings(s); applyZoom(s.ui_scale ?? 1); }
         const roots = await invoke('discover_steam_roots');
         if (!cancelled && Array.isArray(roots)) setDiscoveredRoots(roots);
       } catch (e) {
@@ -337,6 +342,7 @@ function App() {
   const saveSettings = async (next) => {
     setSettings(next);
     setSettingsOpen(false);
+    applyZoom(next.ui_scale ?? 1);
     try {
       await invoke('save_settings', { settings: next });
       toast({ kind: 'ok', title: 'Settings saved' });
@@ -345,6 +351,7 @@ function App() {
       toast({ kind: 'err', title: 'Could not save settings', sub: String(e) });
     }
   };
+  const closeSettings = () => { applyZoom(settings.ui_scale ?? 1); setSettingsOpen(false); };
 
   /* ---------- dev: deep-link to a surface for screenshots ---------- */
   aE(() => {
@@ -467,8 +474,9 @@ function App() {
           settings={settings}
           effectiveRoot={steamRoot}
           discovered={discoveredRoots}
+          onPreviewScale={applyZoom}
           onSave={saveSettings}
-          onClose={() => setSettingsOpen(false)}
+          onClose={closeSettings}
         />
       )}
 
