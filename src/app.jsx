@@ -87,29 +87,67 @@ function App() {
   const selectAll = () => setSelected(new Set(filteredIds));
   const toggleFilter = (id) => setFilters((f) => ({ ...f, [id]: !f[id] }));
 
-  /* ---------- writes (guarded) ---------- */
+  /* ---------- writes (guarded, via the Rust backend) ---------- */
   const guard = () => {
     if (writesBlocked) { toast({ kind: 'err', title: 'Steam is running', sub: 'Close Steam before writing — changes won’t stick.' }); return false; }
     return true;
   };
-  const snap = () => games.map((g) => ({ ...g }));
+  const refreshFrom = (lib) => {
+    setCompatTools(lib.compat_tools || []);
+    setGames(Array.isArray(lib.games) ? lib.games : []);
+    setSteamRunning(!!lib.steam_running);
+  };
+  const plural = (n) => `${n} game${n !== 1 ? 's' : ''}`;
+
+  // changes: [[appid, value], ...]
+  const writeLaunch = async (changes, { title, sub, undo } = {}) => {
+    try {
+      const lib = await invoke('set_launch_options', { changes });
+      refreshFrom(lib);
+      toast({ kind: 'ok', title, sub, undo });
+    } catch (e) {
+      toast({ kind: 'err', title: 'Write failed', sub: String(e) });
+    }
+  };
+  const writeCompat = async (changes, { title, sub, undo } = {}) => {
+    try {
+      const lib = await invoke('set_compat_tool', { changes });
+      refreshFrom(lib);
+      toast({ kind: 'ok', title, sub, undo });
+    } catch (e) {
+      toast({ kind: 'err', title: 'Write failed', sub: String(e) });
+    }
+  };
 
   const applyLaunch = (ids, value) => {
     if (!guard()) return;
-    const prev = snap();
-    setGames((gs) => gs.map((g) => (ids.includes(g.id) ? { ...g, launch: value } : g)));
+    const ts = games.filter((g) => ids.includes(g.id));
+    if (ts.length === 0) return;
+    const undo = { kind: 'launch', changes: ts.map((g) => [g.appid, g.launch || '']) };
+    const changes = ts.map((g) => [g.appid, value]);
     setLaunchTargets(null);
-    toast({ kind: 'ok', title: value ? `Launch options set · ${ids.length} game${ids.length !== 1 ? 's' : ''}` : `Launch options cleared · ${ids.length} game${ids.length !== 1 ? 's' : ''}`, sub: value ? value : undefined, undo: prev });
+    writeLaunch(changes, {
+      title: value ? `Launch options set · ${plural(ts.length)}` : `Launch options cleared · ${plural(ts.length)}`,
+      sub: value || undefined,
+      undo,
+    });
   };
   const applyCompat = (ids, compat) => {
     if (!guard()) return;
-    const prev = snap();
-    setGames((gs) => gs.map((g) => (ids.includes(g.id) ? { ...g, compat } : g)));
+    const ts = games.filter((g) => ids.includes(g.id));
+    if (ts.length === 0) return;
+    const undo = { kind: 'compat', changes: ts.map((g) => [g.appid, g.compat || 'default']) };
+    const changes = ts.map((g) => [g.appid, compat]);
     setCompatPop(null);
-    toast({ kind: 'ok', title: `Compatibility set · ${ids.length} game${ids.length !== 1 ? 's' : ''}`, sub: compatName(compat), undo: prev });
+    writeCompat(changes, { title: `Compatibility set · ${plural(ts.length)}`, sub: compatName(compat), undo });
   };
   const clearLaunch = (ids) => applyLaunch(ids, '');
-  const onUndo = (t) => { if (t.undo) setGames(t.undo); dismissToast(t.id); toast({ kind: 'ok', title: 'Reverted' }); };
+  const onUndo = (t) => {
+    dismissToast(t.id);
+    if (!t.undo) return;
+    if (t.undo.kind === 'launch') writeLaunch(t.undo.changes, { title: 'Reverted launch options' });
+    else if (t.undo.kind === 'compat') writeCompat(t.undo.changes, { title: 'Reverted compatibility' });
+  };
 
   /* ---------- preset CRUD ---------- */
   const saveItem = (item) => {

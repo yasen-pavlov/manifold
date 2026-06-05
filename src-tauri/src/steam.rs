@@ -12,17 +12,22 @@
 // VDF is parsed only for reading here, so keyvalues-parser's BTreeMap reordering
 // is irrelevant — we never render it back. Writes (next milestone) will be surgical.
 
+use crate::vdfedit;
 use keyvalues_parser::{parse, Value, Vdf};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const APPS_PATH: &[&str] = &["Software", "Valve", "Steam", "apps"];
+const COMPAT_PATH: &[&str] = &["Software", "Valve", "Steam", "CompatToolMapping"];
 
 // ----------------------------------------------------------------------------
 // DTOs returned to the frontend (shapes match the React mock in src/data.jsx)
 // ----------------------------------------------------------------------------
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct GameDto {
     pub id: String,     // "app<appid>"
     pub appid: String,
@@ -32,14 +37,14 @@ pub struct GameDto {
     pub launch: String, // LaunchOptions string ("" if none)
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct CompatToolDto {
     pub id: String,   // internal name used in CompatToolMapping
     pub name: String, // display name
     pub note: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct LibraryDto {
     pub games: Vec<GameDto>,
     pub compat_tools: Vec<CompatToolDto>,
@@ -418,9 +423,216 @@ pub fn scan() -> Result<LibraryDto, String> {
     })
 }
 
+// ----------------------------------------------------------------------------
+// Write path (guarded): Steam-closed check + verify + backup + atomic rename
+// ----------------------------------------------------------------------------
+
+/// Read a string value at `path` from VDF text (reordering is irrelevant for reads).
+pub(crate) fn read_path_string(text: &str, path: &[&str]) -> Option<String> {
+    let vdf = Vdf::from(parse(text).ok()?);
+    nav(&vdf.value, path).and_then(|v| v.get_str()).map(|s| s.to_string())
+}
+
+#[cfg(test)]
+pub(crate) fn test_read<'a>(v: &'a Value<'a>, path: &[&str]) -> Option<String> {
+    nav(v, path).and_then(|x| x.get_str()).map(|s| s.to_string())
+}
+
+fn timestamped_backup(src: &Path) -> Result<PathBuf, String> {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let dir = home().join(".local/share/manifold/backups");
+    fs::create_dir_all(&dir).map_err(|e| format!("create backup dir: {e}"))?;
+    let stem = src.file_name().and_then(|s| s.to_str()).unwrap_or("file.vdf");
+    let dst = dir.join(format!("{stem}.{ts}.bak"));
+    fs::copy(src, &dst).map_err(|e| format!("write backup: {e}"))?;
+    Ok(dst)
+}
+
+fn atomic_write(path: &Path, contents: &str) -> Result<(), String> {
+    let dir = path.parent().ok_or("target has no parent directory")?;
+    let tmp = dir.join(format!(".manifold.tmp.{}", std::process::id()));
+    fs::write(&tmp, contents).map_err(|e| format!("write temp file: {e}"))?;
+    if let Ok(meta) = fs::metadata(path) {
+        let _ = fs::set_permissions(&tmp, meta.permissions());
+    }
+    fs::rename(&tmp, path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        format!("atomic rename: {e}")
+    })?;
+    Ok(())
+}
+
+fn guard_steam_closed() -> Result<(), String> {
+    if steam_running() {
+        return Err(
+            "Steam is running — close it before writing, or changes will be clobbered when Steam exits."
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+/// Apply LaunchOptions changes (appid -> value) to localconfig.vdf.
+pub fn write_launch_options(changes: Vec<(String, String)>) -> Result<LibraryDto, String> {
+    if changes.is_empty() {
+        return scan();
+    }
+    guard_steam_closed()?;
+    let root = steam_root().ok_or("Steam installation not found")?;
+    let (_user, localconfig) = find_localconfig(&root).ok_or("localconfig.vdf not found")?;
+    let original = fs::read_to_string(&localconfig).map_err(|e| format!("read localconfig.vdf: {e}"))?;
+
+    let mut text = original.clone();
+    for (appid, value) in &changes {
+        text = vdfedit::upsert_app_fields(&text, APPS_PATH, appid, &[("LaunchOptions", value)])?;
+    }
+
+    // Verify: still valid VDF, and every target now reads back exactly as intended.
+    if parse(&text).is_err() {
+        return Err("internal: edited localconfig.vdf failed to re-parse — write aborted".into());
+    }
+    for (appid, value) in &changes {
+        let path = ["Software", "Valve", "Steam", "apps", appid.as_str(), "LaunchOptions"];
+        if read_path_string(&text, &path).as_deref() != Some(value.as_str()) {
+            return Err(format!("verification failed for appid {appid} — write aborted"));
+        }
+    }
+
+    if text != original {
+        timestamped_backup(&localconfig)?;
+        atomic_write(&localconfig, &text)?;
+    }
+    scan()
+}
+
+/// Apply compat-tool changes (appid -> internal tool name; "default" removes the mapping)
+/// to config.vdf.
+pub fn write_compat_tool(changes: Vec<(String, String)>) -> Result<LibraryDto, String> {
+    if changes.is_empty() {
+        return scan();
+    }
+    guard_steam_closed()?;
+    let root = steam_root().ok_or("Steam installation not found")?;
+    let config_vdf = root.join("config/config.vdf");
+    let original = fs::read_to_string(&config_vdf).map_err(|e| format!("read config.vdf: {e}"))?;
+
+    let mut text = original.clone();
+    for (appid, tool) in &changes {
+        if tool == "default" {
+            text = vdfedit::remove_app_block(&text, COMPAT_PATH, appid)?;
+        } else {
+            text = vdfedit::upsert_app_fields(
+                &text,
+                COMPAT_PATH,
+                appid,
+                &[("name", tool.as_str()), ("config", ""), ("priority", "250")],
+            )?;
+        }
+    }
+
+    if parse(&text).is_err() {
+        return Err("internal: edited config.vdf failed to re-parse — write aborted".into());
+    }
+    for (appid, tool) in &changes {
+        let path = ["Software", "Valve", "Steam", "CompatToolMapping", appid.as_str(), "name"];
+        let got = read_path_string(&text, &path);
+        if tool == "default" {
+            if got.is_some() {
+                return Err(format!("verification failed (compat not cleared) for appid {appid}"));
+            }
+        } else if got.as_deref() != Some(tool.as_str()) {
+            return Err(format!("verification failed (compat) for appid {appid}"));
+        }
+    }
+
+    if text != original {
+        timestamped_backup(&config_vdf)?;
+        atomic_write(&config_vdf, &text)?;
+    }
+    scan()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn atomic_write_replaces_contents() {
+        let dir = std::env::temp_dir().join(format!("manifold_test_{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("x.vdf");
+        fs::write(&f, "old contents").unwrap();
+        atomic_write(&f, "new contents").unwrap();
+        assert_eq!(fs::read_to_string(&f).unwrap(), "new contents");
+        // no stray temp file left behind
+        let leftover = fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).any(|e| {
+            e.file_name().to_string_lossy().starts_with(".manifold.tmp")
+        });
+        assert!(!leftover, "temp file should be renamed away");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// With Steam running, a write must be refused AND leave the file byte-for-byte intact.
+    #[test]
+    #[ignore = "checks the live Steam-running guard; run with --ignored --nocapture"]
+    fn guard_blocks_live_write() {
+        if !steam_running() {
+            eprintln!("Steam not running — guard test skipped (close-state path)");
+            return;
+        }
+        let root = steam_root().unwrap();
+        let (_u, lc) = find_localconfig(&root).unwrap();
+        let before = fs::read_to_string(&lc).unwrap();
+        let appid = scan_launch_options(&lc).keys().next().cloned().unwrap();
+        let res = write_launch_options(vec![(appid, "MANIFOLD_GUARD_TEST=1 game %command%".into())]);
+        assert!(res.is_err(), "write must be refused while Steam runs");
+        let err = res.unwrap_err();
+        eprintln!("guard returned: {err}");
+        assert!(err.contains("Steam is running"));
+        let after = fs::read_to_string(&lc).unwrap();
+        assert_eq!(before, after, "localconfig.vdf must be untouched when the guard blocks");
+    }
+
+    /// Apply a launch-options edit to the REAL localconfig.vdf in memory (writes nothing)
+    /// and assert the change is correct and the diff is minimal (no reordering/loss).
+    #[test]
+    #[ignore = "reads the real localconfig.vdf; run with --ignored --nocapture"]
+    fn real_file_minimal_diff() {
+        let root = steam_root().expect("steam root");
+        let (_u, lc) = find_localconfig(&root).expect("localconfig");
+        let original = fs::read_to_string(&lc).expect("read");
+        let launch = scan_launch_options(&lc);
+        let appid = launch
+            .keys()
+            .next()
+            .cloned()
+            .expect("at least one game with launch options");
+        let new_val = "MANIFOLD_SELFTEST=1 game %command%";
+        let edited = vdfedit::upsert_app_fields(&original, APPS_PATH, &appid, &[("LaunchOptions", new_val)])
+            .expect("edit");
+
+        assert!(parse(&edited).is_ok(), "edited file must still parse");
+        let path = ["Software", "Valve", "Steam", "apps", appid.as_str(), "LaunchOptions"];
+        assert_eq!(read_path_string(&edited, &path).as_deref(), Some(new_val));
+
+        let diff_lines = original
+            .lines()
+            .zip(edited.lines())
+            .filter(|(a, b)| a != b)
+            .count();
+        let len_delta = (edited.len() as isize - original.len() as isize).abs();
+        eprintln!(
+            "appid={appid}  changed_lines~={diff_lines}  len_delta={len_delta}  (orig {} lines, edit {} lines)",
+            original.lines().count(),
+            edited.lines().count()
+        );
+        // Replacing one value should touch exactly one line and not reorder anything.
+        assert_eq!(original.lines().count(), edited.lines().count(), "line count must be stable");
+        assert!(diff_lines <= 1, "only the edited line should differ, got {diff_lines}");
+    }
 
     #[test]
     #[ignore = "depends on a real local Steam install; run with --ignored --nocapture"]

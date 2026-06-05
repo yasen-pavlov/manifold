@@ -26,5 +26,9 @@ npm run tauri build    # release bundle
 - **Milestone 1 (done):** read-only library scan — parses `localconfig.vdf` (launch
   options), `config.vdf` (compat-tool mapping), appmanifests and library folders; detects
   whether Steam is running.
-- **Next:** guarded writes (Steam-closed check + timestamped backup + atomic surgical VDF
-  edits) for launch options and compat tool.
+- **Milestone 2 (done):** guarded writes for launch options and compat tool — a surgical,
+  lossless VDF text editor (`vdfedit.rs`, no key reordering) behind a Steam-closed guard,
+  re-parse verification, timestamped backup (`~/.local/share/manifold/backups/`) and atomic
+  rename. Frontend applies changes via the backend and refreshes from disk; Undo re-writes
+  the previous per-game values.
+- **Next:** preset persistence (`~/.config/manifold/`), then the structured option builder.
