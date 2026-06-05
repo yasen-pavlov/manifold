@@ -1,4 +1,4 @@
-// icons.jsx — curated lucide-style line icons (16px default, 1.75 stroke)
+// icons.jsx - curated lucide-style line icons (16px default, 1.75 stroke)
 const ICON_PATHS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
@@ -39,6 +39,7 @@ const ICON_PATHS = {
   power: '<path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.77.04"/>',
   return: '<path d="M9 10 4 15l5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/>',
   dot: '<circle cx="12" cy="12" r="3"/>',
+  square: '<rect x="4.5" y="4.5" width="15" height="15" rx="1.5"/>',
 };
 
 function Icon({ name, size = 16, stroke = 1.75, className = '', style = {} }) {

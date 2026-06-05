@@ -1,8 +1,37 @@
-// surfaces.jsx — launch sheet, compat picker, row menu, banner, toasts, empty, cmdk
+// surfaces.jsx - launch sheet, compat picker, row menu, banner, toasts, empty, cmdk
 import React, { useState as uS, useEffect as uE, useRef as uR, useMemo as uM } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Icon } from "./icons.jsx";
 import { HiLaunch, COMPAT_TOOLS } from "./data.jsx";
 import { Check } from "./table.jsx";
+
+/* ============ Window controls (custom titlebar, decorations off) ============ */
+function appWindow() {
+  try { return getCurrentWindow(); } catch { return null; }
+}
+function WindowControls({ side }) {
+  const min = () => appWindow()?.minimize().catch(() => {});
+  const max = () => appWindow()?.toggleMaximize().catch(() => {});
+  const close = () => appWindow()?.close().catch(() => {});
+  if (side === 'left') {
+    // macOS traffic lights: close · minimize · maximize
+    return (
+      <div className="tb-dots">
+        <button className="tb-dot c" onClick={close} title="Close" />
+        <button className="tb-dot m" onClick={min} title="Minimize" />
+        <button className="tb-dot x" onClick={max} title="Zoom" />
+      </div>
+    );
+  }
+  // Windows/Linux: minimize · maximize · close
+  return (
+    <div className="win-ctl">
+      <button className="wc" onClick={min} title="Minimize"><Icon name="minus" size={15} /></button>
+      <button className="wc" onClick={max} title="Maximize"><Icon name="square" size={12} /></button>
+      <button className="wc wc-close" onClick={close} title="Close"><Icon name="x" size={15} /></button>
+    </div>
+  );
+}
 
 /* ============ composition engine ============ */
 function isLauncher(tok) {
@@ -85,7 +114,7 @@ function LaunchSheet({ targets, presets, options, onApply, onClose, onClear }) {
                   {currentLines.slice(0, 4).map(([line, ct], i) => (
                     <div className="curval" key={i}>
                       <span className="cv-ct">{ct}×</span>
-                      <span className="cv-str">{line ? line : '— empty'}</span>
+                      <span className="cv-str">{line ? line : '(empty)'}</span>
                     </div>
                   ))}
                   {currentLines.length > 4 && <div className="curval"><span className="cv-ct" /><span className="cv-str">+{currentLines.length - 4} more…</span></div>}
@@ -145,11 +174,11 @@ function LaunchSheet({ targets, presets, options, onApply, onClose, onClear }) {
             />
             <div className="preview-foot">
               {text.trim() === '' ? (
-                <span style={{ color: 'var(--tx-faint)' }}>Empty — applying will clear launch options.</span>
+                <span style={{ color: 'var(--tx-faint)' }}>Empty: applying will clear launch options.</span>
               ) : valid ? (
                 <span className="cmd-ok"><Icon name="checkCircle" size={12} />valid · one %command%</span>
               ) : (
-                <span className="cmd-warn"><Icon name="alert" size={12} />{cmdCount === 0 ? 'no %command% token' : cmdCount + '× %command% — should appear once'}</span>
+                <span className="cmd-warn"><Icon name="alert" size={12} />{cmdCount === 0 ? 'no %command% token' : cmdCount + '× %command% - should appear once'}</span>
               )}
               <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{text.length} ch</span>
             </div>
@@ -234,7 +263,7 @@ function SteamBanner({ onCloseSteam, busy, onDismiss }) {
     <div className="banner">
       <span className="b-ico"><Icon name="alert" size={17} /></span>
       <div className="b-txt">
-        <b>Steam is running</b> — <span>changes won't stick until Steam is closed. Manifold will offer to close Steam when you apply, or close it now.</span>
+        <b>Steam is running</b> - <span>changes won't stick until Steam is closed. Manifold will offer to close Steam when you apply, or close it now.</span>
       </div>
       <div className="b-spacer" />
       <button className="b-act" onClick={onCloseSteam} disabled={busy}>
@@ -286,8 +315,10 @@ function SteamConfirm({ count, onChoose }) {
 function SettingsSheet({ settings, effectiveRoot, discovered, onSave, onClose }) {
   const [root, setRoot] = uS(settings.steam_root || '');
   const [silent, setSilent] = uS(settings.silent_start !== false);
+  const [wc, setWc] = uS(settings.window_controls || 'auto');
   const trimmed = root.trim();
   const usingAuto = trimmed === '';
+  const WC_OPTS = [['auto', 'Auto'], ['left', 'Left'], ['right', 'Right'], ['hidden', 'Hidden']];
   return (
     <>
       <div className="scrim" onClick={onClose} />
@@ -304,7 +335,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, onSave, onClose })
           <div className="section-label"><Icon name="folder" size={13} />Steam installation<span className="sl-line" /></div>
           <div className="note info" style={{ marginBottom: 12 }}>
             <span className="n-ico" style={{ color: 'var(--tx-lo)' }}><Icon name="info" size={15} /></span>
-            <div>Currently using <span className="mono">{effectiveRoot || '—'}</span>{usingAuto ? <span style={{ color: 'var(--tx-faint)' }}> (auto-detected)</span> : null}</div>
+            <div>Currently using <span className="mono">{effectiveRoot || '(not detected)'}</span>{usingAuto ? <span style={{ color: 'var(--tx-faint)' }}> (auto-detected)</span> : null}</div>
           </div>
 
           <div className="field">
@@ -338,12 +369,27 @@ function SettingsSheet({ settings, effectiveRoot, discovered, onSave, onClose })
             </div>
             <div className="hint">{silent ? 'Start Steam minimized to the tray (steam -silent).' : 'Start Steam with its window shown.'}</div>
           </div>
+
+          <div className="section-label" style={{ marginTop: 18 }}><Icon name="square" size={12} />Window<span className="sl-line" /></div>
+          <div className="field">
+            <label>Window-control buttons</label>
+            <div className="seg">
+              {WC_OPTS.map(([id, label]) => (
+                <button key={id} className={wc === id ? 'on' : ''} onClick={() => setWc(id)}>{label}</button>
+              ))}
+            </div>
+            <div className="hint">
+              The native title bar is off; these are Manifold's own controls.
+              <b> Auto</b> puts them where your OS does (macOS left, Linux/Windows right).
+              <b> Hidden</b> removes them (use your compositor - e.g. Hyprland - to manage the window).
+            </div>
+          </div>
         </div>
 
         <div className="sheet-foot">
           <div style={{ flex: 1 }} />
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent })}>
+          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc })}>
             <Icon name="check" size={14} />Save
           </button>
         </div>
@@ -387,4 +433,4 @@ function EmptyState({ onRetry }) {
   );
 }
 
-export { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, Toasts, EmptyState, Popover, composeLaunch };
+export { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState, Popover, composeLaunch };

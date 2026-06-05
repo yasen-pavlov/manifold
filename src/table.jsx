@@ -1,4 +1,4 @@
-// table.jsx — toolbar, games table, bulk bar, footer
+// table.jsx - toolbar, games table, bulk bar, footer
 import React, { useState, useRef, useMemo } from "react";
 import { Icon } from "./icons.jsx";
 import { parseWrapper, HiLaunch, compatName, LIBRARY_PATH } from "./data.jsx";
@@ -76,7 +76,7 @@ function WrapTag({ launch }) {
 }
 
 function LaunchCell({ value, onTip }) {
-  if (!value) return <span className="launch-empty">— no launch options</span>;
+  if (!value) return <span className="launch-empty">no launch options</span>;
   return (
     <div className="launch-cell">
       <span

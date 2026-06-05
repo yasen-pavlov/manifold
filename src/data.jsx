@@ -1,7 +1,7 @@
-// data.jsx — mock library + presets + helpers (uses real data from the brief)
+// data.jsx - mock library + presets + helpers (uses real data from the brief)
 
 const COMPAT_TOOLS = [
-  { id: 'default',  name: 'Default',              note: 'No forced tool — Steam decides' },
+  { id: 'default',  name: 'Default',              note: 'No forced tool - Steam decides' },
   { id: 'exp',      name: 'Proton - Experimental', note: 'Bleeding-edge Valve build' },
   { id: 'p90',      name: 'Proton 9.0 (Beta)',     note: 'Stable 9.0 branch' },
   { id: 'cachyos',  name: 'proton-cachyos-slr',    note: 'CachyOS optimized + SLR runtime' },
@@ -11,7 +11,7 @@ const COMPAT_TOOLS = [
 // named launch lines
 const PRESETS = [
   { id: 'p_hdr',    kind: 'preset', name: 'Native HDR',         desc: 'Wayland-native HDR pipeline (Proton + DXVK).', value: 'PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%' },
-  { id: 'p_xw',     kind: 'preset', name: 'XWayland (overlay)', desc: 'Force XWayland — for overlays & legacy capture.', value: 'game_xwayland %command%' },
+  { id: 'p_xw',     kind: 'preset', name: 'XWayland (overlay)', desc: 'Force XWayland - for overlays & legacy capture.', value: 'game_xwayland %command%' },
   { id: 'p_gs',     kind: 'preset', name: 'Gamescope HDR',      desc: 'Run inside a gamescope micro-compositor.', value: 'game_gamescope %command%' },
   { id: 'p_opti',   kind: 'preset', name: 'OptiScaler (DLSS→FSR4)', desc: 'Swap DLSS/XeSS for FSR4 via OptiScaler.', value: 'PROTON_USE_OPTISCALER=1 game %command%' },
 ];

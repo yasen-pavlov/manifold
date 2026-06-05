@@ -1,4 +1,4 @@
-// store.rs — persistence for user-created presets and single-options.
+// store.rs - persistence for user-created presets and single-options.
 //
 // Stored as JSON at ~/.config/manifold/presets.json. On first run the file is seeded
 // with a set of sensible defaults so the app isn't empty.
@@ -52,7 +52,7 @@ fn default_store() -> PresetStore {
     PresetStore {
         presets: vec![
             item("p_hdr", "preset", "Native HDR", "Wayland-native HDR pipeline (Proton + DXVK).", "PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%"),
-            item("p_xw", "preset", "XWayland (overlay)", "Force XWayland — for overlays & legacy capture.", "game_xwayland %command%"),
+            item("p_xw", "preset", "XWayland (overlay)", "Force XWayland - for overlays & legacy capture.", "game_xwayland %command%"),
             item("p_gs", "preset", "Gamescope HDR", "Run inside a gamescope micro-compositor.", "game_gamescope %command%"),
             item("p_opti", "preset", "OptiScaler (DLSS→FSR4)", "Swap DLSS/XeSS for FSR4 via OptiScaler.", "PROTON_USE_OPTISCALER=1 game %command%"),
         ],

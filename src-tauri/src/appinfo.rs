@@ -1,4 +1,4 @@
-// appinfo.rs — resolve appid -> game name from Steam's local binary cache
+// appinfo.rs - resolve appid -> game name from Steam's local binary cache
 // (appcache/appinfo.vdf). Used to name owned/uninstalled games that have no
 // appmanifest. Fully offline; no network.
 //
@@ -7,7 +7,7 @@
 // key-values blob. In v29 the KV keys are u32 indices into a trailing string
 // table; in v27/v28 they are inline NUL-terminated strings.
 //
-// All reads are bounds-checked and return None on malformed input — this parser
+// All reads are bounds-checked and return None on malformed input - this parser
 // must never panic on a file we didn't write.
 
 use std::collections::{HashMap, HashSet};
@@ -242,7 +242,7 @@ mod tests {
     #[ignore = "reads the real appinfo.vdf; run with --ignored --nocapture"]
     fn resolves_real_names() {
         // 4032340 = "1492: A New World Demo" (owned/played, not installed)
-        // 281990  = Stellaris (installed) — sanity that installed apps resolve too
+        // 281990  = Stellaris (installed) - sanity that installed apps resolve too
         let want: HashSet<u32> = [4032340u32, 281990].into_iter().collect();
         let names = resolve_names(&want);
         eprintln!("resolved: {names:?}");

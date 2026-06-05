@@ -1,4 +1,4 @@
-// presets.jsx — presets manager, editor, backups, command palette
+// presets.jsx - presets manager, editor, backups, command palette
 import React, { useState as pS, useEffect as pE, useRef as pR } from "react";
 import { Icon } from "./icons.jsx";
 import { HiLaunch } from "./data.jsx";
@@ -44,7 +44,7 @@ function ItemEditor({ item, onSave, onClose }) {
           <div className="field">
             <label>{kind === 'preset' ? 'Launch line' : 'Fragment value'}</label>
             <textarea className="mono" value={value} onChange={(e) => setValue(e.target.value)} placeholder={kind === 'preset' ? 'PROTON_ENABLE_HDR=1 game %command%' : 'PROTON_USE_OPTISCALER=1'} spellCheck={false} />
-            <div className="hint">{kind === 'preset' ? 'Include %command% where the game executable goes.' : 'No %command% needed — fragments compose before it.'}</div>
+            <div className="hint">{kind === 'preset' ? 'Include %command% where the game executable goes.' : 'No %command% needed - fragments compose before it.'}</div>
           </div>
           {value.trim() && (
             <div className="preview" style={{ borderColor: 'var(--line)' }}>

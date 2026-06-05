@@ -1,4 +1,4 @@
-// steam.rs — read-only Steam library scanner.
+// steam.rs - read-only Steam library scanner.
 //
 // Reads (never writes, this milestone):
 //   - libraryfolders.vdf         -> library paths
@@ -10,7 +10,7 @@
 //   - /proc/*/comm               -> is Steam running?
 //
 // VDF is parsed only for reading here, so keyvalues-parser's BTreeMap reordering
-// is irrelevant — we never render it back. Writes (next milestone) will be surgical.
+// is irrelevant - we never render it back. Writes (next milestone) will be surgical.
 
 use crate::vdfedit;
 use keyvalues_parser::{parse, Value, Vdf};
@@ -57,7 +57,7 @@ pub struct LibraryDto {
 }
 
 // ----------------------------------------------------------------------------
-// VDF navigation helpers (case-insensitive — Steam's casing is inconsistent)
+// VDF navigation helpers (case-insensitive - Steam's casing is inconsistent)
 // ----------------------------------------------------------------------------
 
 fn child<'a>(v: &'a Value<'a>, key: &str) -> Option<&'a Value<'a>> {
@@ -134,7 +134,7 @@ pub fn discover_roots() -> Vec<RootCandidate> {
     out
 }
 
-/// userdata/<id>/config/localconfig.vdf — pick the id dir that actually has one.
+/// userdata/<id>/config/localconfig.vdf - pick the id dir that actually has one.
 fn find_localconfig(root: &Path) -> Option<(String, PathBuf)> {
     let userdata = root.join("userdata");
     let mut best: Option<(String, PathBuf)> = None;
@@ -267,7 +267,7 @@ fn discover_compat_tools(root: &Path, libs: &[PathBuf]) -> Vec<CompatToolDto> {
     let mut tools: Vec<CompatToolDto> = vec![CompatToolDto {
         id: "default".into(),
         name: "Default".into(),
-        note: "No forced tool — Steam decides".into(),
+        note: "No forced tool - Steam decides".into(),
     }];
     let mut seen: Vec<String> = vec!["default".into()];
 
@@ -367,7 +367,7 @@ fn steam_running() -> bool {
 }
 
 fn is_noise_app(appid: &str, name: &str) -> bool {
-    // Steam runtimes, redistributables, Proton tools — not real games.
+    // Steam runtimes, redistributables, Proton tools - not real games.
     if appid == "228980" {
         return true; // Steamworks Common Redistributables
     }
@@ -423,7 +423,7 @@ pub fn scan() -> Result<LibraryDto, String> {
     let mut games: Vec<GameDto> = Vec::new();
     for appid in appids {
         // Skip appid "0" (the global-default compat bucket) and non-Steam shortcuts
-        // (high-bit 32-bit IDs >= 2^31 — out of scope; they live in shortcuts.vdf).
+        // (high-bit 32-bit IDs >= 2^31 - out of scope; they live in shortcuts.vdf).
         match appid.parse::<u64>() {
             Ok(n) if n == 0 || n >= 2_147_483_648 => continue,
             Err(_) => continue,
@@ -523,7 +523,7 @@ fn atomic_write(path: &Path, contents: &str) -> Result<(), String> {
 fn guard_steam_closed() -> Result<(), String> {
     if steam_running() {
         return Err(
-            "Steam is running — close it before writing, or changes will be clobbered when Steam exits."
+            "Steam is running - close it before writing, or changes will be clobbered when Steam exits."
                 .into(),
         );
     }
@@ -547,12 +547,12 @@ pub fn write_launch_options(changes: Vec<(String, String)>) -> Result<LibraryDto
 
     // Verify: still valid VDF, and every target now reads back exactly as intended.
     if parse(&text).is_err() {
-        return Err("internal: edited localconfig.vdf failed to re-parse — write aborted".into());
+        return Err("internal: edited localconfig.vdf failed to re-parse - write aborted".into());
     }
     for (appid, value) in &changes {
         let path = ["Software", "Valve", "Steam", "apps", appid.as_str(), "LaunchOptions"];
         if read_path_string(&text, &path).as_deref() != Some(value.as_str()) {
-            return Err(format!("verification failed for appid {appid} — write aborted"));
+            return Err(format!("verification failed for appid {appid} - write aborted"));
         }
     }
 
@@ -589,7 +589,7 @@ pub fn write_compat_tool(changes: Vec<(String, String)>) -> Result<LibraryDto, S
     }
 
     if parse(&text).is_err() {
-        return Err("internal: edited config.vdf failed to re-parse — write aborted".into());
+        return Err("internal: edited config.vdf failed to re-parse - write aborted".into());
     }
     for (appid, tool) in &changes {
         let path = ["Software", "Valve", "Steam", "CompatToolMapping", appid.as_str(), "name"];
@@ -686,7 +686,7 @@ mod tests {
     #[ignore = "checks the live Steam-running guard; run with --ignored --nocapture"]
     fn guard_blocks_live_write() {
         if !steam_running() {
-            eprintln!("Steam not running — guard test skipped (close-state path)");
+            eprintln!("Steam not running - guard test skipped (close-state path)");
             return;
         }
         let root = steam_root().unwrap();

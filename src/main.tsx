@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 
-// bundled fonts (offline-safe) — Geist for chrome, JetBrains Mono for machine strings
+// bundled fonts (offline-safe) - Geist for chrome, JetBrains Mono for machine strings
 import "@fontsource/geist-sans/400.css";
 import "@fontsource/geist-sans/500.css";
 import "@fontsource/geist-sans/600.css";

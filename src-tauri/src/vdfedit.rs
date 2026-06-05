@@ -1,4 +1,4 @@
-// vdfedit.rs — surgical, lossless text edits of Steam VDF files.
+// vdfedit.rs - surgical, lossless text edits of Steam VDF files.
 //
 // We do NOT round-trip through a VDF parser (keyvalues-parser reorders keys via its
 // BTreeMap and isn't byte-faithful). Steam's localconfig.vdf is ~150 KB of unrelated
@@ -58,7 +58,7 @@ fn tokenize(text: &str) -> Result<Vec<Tok>, String> {
                 }
                 match b[i] {
                     b'\\' if i + 1 < b.len() => {
-                        // VDF escapes: \\ \" \n \t — keep it simple, decode the common ones
+                        // VDF escapes: \\ \" \n \t - keep it simple, decode the common ones
                         let next = b[i + 1];
                         content.push(match next {
                             b'n' => '\n',
@@ -332,13 +332,13 @@ mod tests {
         assert_eq!(launch_of(&out, "730").as_deref(), Some("mangohud %command%"));
         // unrelated key preserved
         assert!(out.contains("\"LastPlayed\"\t\t\"123\""));
-        // only the value changed — byte length differs only by the value delta
+        // only the value changed - byte length differs only by the value delta
         assert!(out.contains("\"LaunchOptions\"\t\t\"mangohud %command%\""));
     }
 
     #[test]
     fn insert_missing_field() {
-        // 570 has no LaunchOptions — should be inserted
+        // 570 has no LaunchOptions - should be inserted
         let out = upsert_app_fields(SAMPLE, APPS, "570", &[("LaunchOptions", "game %command%")]).unwrap();
         assert_eq!(launch_of(&out, "570").as_deref(), Some("game %command%"));
         assert!(out.contains("\"LastPlayed\"\t\t\"456\""));

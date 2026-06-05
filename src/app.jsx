@@ -1,10 +1,18 @@
-// app.jsx — Manifold main: state, routing, window chrome, keyboard
+// app.jsx - Manifold main: state, routing, window chrome, keyboard
 import React, { useState as aS, useEffect as aE, useMemo as aM, useCallback as aC } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./icons.jsx";
 import { GAMES, PRESETS, OPTIONS, compatName, setCompatTools } from "./data.jsx";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table.jsx";
-import { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, Toasts, EmptyState } from "./surfaces.jsx";
+import { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces.jsx";
+
+const OS = (typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '')) ? 'mac'
+  : (typeof navigator !== 'undefined' && /win/i.test(navigator.platform || '')) ? 'windows' : 'linux';
+function resolveControlsSide(pref) {
+  if (pref === 'hidden') return 'none';
+  if (pref === 'left' || pref === 'right') return pref;
+  return OS === 'mac' ? 'left' : 'right'; // auto
+}
 import { PresetsManager, ItemEditor, BackupsView, CommandPalette } from "./presets.jsx";
 
 let _tid = 0;
@@ -34,7 +42,7 @@ function App() {
   const [toasts, setToasts] = aS([]);
   const [steamPrompt, setSteamPrompt] = aS(null); // { count, run(mode) } | null
   const [steamBusy, setSteamBusy] = aS(false);
-  const [settings, setSettings] = aS({ steam_root: '', silent_start: true });
+  const [settings, setSettings] = aS({ steam_root: '', silent_start: true, window_controls: 'auto' });
   const [settingsOpen, setSettingsOpen] = aS(false);
   const [discoveredRoots, setDiscoveredRoots] = aS([]);
   const [steamRoot, setSteamRoot] = aS('');
@@ -282,7 +290,7 @@ function App() {
       }
       return lib;
     } catch (e) {
-      // Not running under Tauri (e.g. `vite preview`) — fall back to mock data
+      // Not running under Tauri (e.g. `vite preview`) - fall back to mock data
       // so the UI is still demoable in a plain browser.
       setGames(GAMES.map((g) => ({ ...g })));
       setScanError(String(e));
@@ -304,7 +312,7 @@ function App() {
         setPresets(Array.isArray(store.presets) ? store.presets : []);
         setOptions(Array.isArray(store.options) ? store.options : []);
       } catch (e) {
-        // not under Tauri (e.g. vite preview) — keep the in-memory seed defaults
+        // not under Tauri (e.g. vite preview) - keep the in-memory seed defaults
       }
     })();
     return () => { cancelled = true; };
@@ -320,7 +328,7 @@ function App() {
         const roots = await invoke('discover_steam_roots');
         if (!cancelled && Array.isArray(roots)) setDiscoveredRoots(roots);
       } catch (e) {
-        // not under Tauri — keep defaults
+        // not under Tauri - keep defaults
       }
     })();
     return () => { cancelled = true; };
@@ -373,19 +381,18 @@ function App() {
   }, [launchTargets, editor, compatPop, selected, tab, filteredIds]);
 
   const showBanner = steamRunning && !bannerDismissed;
+  const controlsSide = resolveControlsSide(settings.window_controls);
 
   return (
     <div className="app">
-      {/* titlebar */}
-      <div className="titlebar">
-        <div className="tb-dots">
-          <button className="tb-dot c" /><button className="tb-dot m" /><button className="tb-dot x" />
-        </div>
-        <div className="tb-brand">
+      {/* titlebar (custom - native decorations are off; this is the drag region) */}
+      <div className="titlebar" data-tauri-drag-region>
+        {controlsSide === 'left' && <WindowControls side="left" />}
+        <div className="tb-brand" data-tauri-drag-region>
           <div className="tb-mark"><i /></div>
-          <div className="tb-title">Manifold <b>· steam launch &amp; compat manager</b></div>
+          <div className="tb-title" data-tauri-drag-region>Manifold <b>· steam launch &amp; compat manager</b></div>
         </div>
-        <div className="tb-spacer" />
+        <div className="tb-spacer" data-tauri-drag-region />
         <div className="tabs">
           {[['library', 'Library', 'layers'], ['presets', 'Presets', 'sliders'], ['backups', 'Backups', 'history']].map(([id, label, icon]) => (
             <button key={id} className={'tab' + (tab === id ? ' active' : '')} onClick={() => setTab(id)}>
@@ -395,9 +402,10 @@ function App() {
             </button>
           ))}
         </div>
-        <div className="tb-spacer" />
+        <div className="tb-spacer" data-tauri-drag-region />
         <button className="tb-btn" onClick={() => setCmdk(true)}><Icon name="command" size={14} />Search<span className="kbd">⌘K</span></button>
         <button className="icon-btn" title="Settings" onClick={() => setSettingsOpen(true)}><Icon name="settings" size={15} /></button>
+        {controlsSide === 'right' && <WindowControls side="right" />}
       </div>
 
       {showBanner && <SteamBanner onCloseSteam={closeSteam} busy={steamBusy} onDismiss={() => setBannerDismissed(true)} />}

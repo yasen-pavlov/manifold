@@ -42,6 +42,10 @@ npm run tauri build    # release bundle
   prompts to close → apply → (optionally) reopen Steam.
 - **Settings (done):** `settings.rs` persists `~/.config/manifold/settings.json`. A Settings
   sheet (titlebar gear / command palette) configures the **Steam path** (override or
-  auto-detect from discovered roots) and **silent start** (`steam -silent`). Designed to grow.
+  auto-detect from discovered roots), **silent start** (`steam -silent`), and **window
+  controls** placement. Designed to grow.
+- **Borderless window (done):** native decorations are off; a custom titlebar is the drag
+  region with functional minimize/maximize/close. Window-control placement is configurable:
+  Auto (macOS left, Linux/Windows right), Left, Right, or Hidden.
 - **Next:** the structured option builder (categorized Proton/MangoHud/DXVK menu with
   descriptions), then stretch items (ProtonDB links, preset sharing).

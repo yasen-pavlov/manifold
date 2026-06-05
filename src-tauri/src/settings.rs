@@ -1,4 +1,4 @@
-// settings.rs — app settings, persisted at ~/.config/manifold/settings.json.
+// settings.rs - app settings, persisted at ~/.config/manifold/settings.json.
 //
 // Kept intentionally small but easy to grow: add a field with a #[serde(default ...)]
 // and it stays backward-compatible with existing settings files.
@@ -11,6 +11,10 @@ fn default_silent_start() -> bool {
     true
 }
 
+fn default_window_controls() -> String {
+    "auto".into()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Settings {
     /// Explicit Steam root override. Empty string => auto-detect.
@@ -19,6 +23,9 @@ pub struct Settings {
     /// Start Steam minimized to tray (`steam -silent`).
     #[serde(default = "default_silent_start")]
     pub silent_start: bool,
+    /// Window-control button placement: "auto" | "left" | "right" | "hidden".
+    #[serde(default = "default_window_controls")]
+    pub window_controls: String,
 }
 
 impl Default for Settings {
@@ -26,6 +33,7 @@ impl Default for Settings {
         Settings {
             steam_root: String::new(),
             silent_start: true,
+            window_controls: default_window_controls(),
         }
     }
 }
