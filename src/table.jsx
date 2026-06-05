@@ -216,7 +216,9 @@ function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, 
 }
 
 /* ---------------- Footer ---------------- */
-function Footer({ total, installed, shown, selected, steamRunning, onToggleSteam }) {
+function Footer({ total, installed, shown, selected, steamRunning, steamBusy, onCloseSteam, onStartSteam }) {
+  const onClick = steamBusy ? undefined : (steamRunning ? onCloseSteam : onStartSteam);
+  const title = steamBusy ? 'Working…' : (steamRunning ? 'Close Steam' : 'Start Steam');
   return (
     <div className="footer">
       <div className="foot-item">
@@ -239,9 +241,10 @@ function Footer({ total, installed, shown, selected, steamRunning, onToggleSteam
       )}
       <div className="foot-spacer" />
       <div className="foot-item foot-path">{LIBRARY_PATH}</div>
-      <div className={'foot-item clickable foot-state ' + (steamRunning ? 'running' : 'stopped')} onClick={onToggleSteam} title="Toggle simulated Steam state">
+      <div className={'foot-item clickable foot-state ' + (steamRunning ? 'running' : 'stopped')} onClick={onClick} title={title}>
         <span className="dot" />
-        <span>Steam {steamRunning ? 'running' : 'stopped'}</span>
+        <span>Steam {steamBusy ? 'working…' : (steamRunning ? 'running' : 'stopped')}</span>
+        <span style={{ color: 'var(--tx-faint)', marginLeft: 4 }}>{steamBusy ? '' : (steamRunning ? '· close' : '· start')}</span>
       </div>
     </div>
   );

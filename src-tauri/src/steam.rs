@@ -18,7 +18,9 @@ use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Command, Stdio};
+use std::thread::sleep;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const APPS_PATH: &[&str] = &["Software", "Valve", "Steam", "apps"];
 const COMPAT_PATH: &[&str] = &["Software", "Valve", "Steam", "CompatToolMapping"];
@@ -564,6 +566,54 @@ pub fn write_compat_tool(changes: Vec<(String, String)>) -> Result<LibraryDto, S
     if text != original {
         timestamped_backup(&config_vdf)?;
         atomic_write(&config_vdf, &text)?;
+    }
+    scan()
+}
+
+// ----------------------------------------------------------------------------
+// Steam process control (so the user can close/reopen Steam to make writes stick)
+// ----------------------------------------------------------------------------
+
+/// Ask Steam to shut down cleanly (`steam -shutdown`) and wait for the client to exit.
+/// This also closes any running games. Returns a fresh scan once Steam is gone.
+pub fn close_steam() -> Result<LibraryDto, String> {
+    if !steam_running() {
+        return scan();
+    }
+    Command::new("steam")
+        .arg("-shutdown")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| format!("failed to run `steam -shutdown`: {e}"))?;
+    // poll up to ~30s for the client process to disappear
+    for _ in 0..60 {
+        if !steam_running() {
+            return scan();
+        }
+        sleep(Duration::from_millis(500));
+    }
+    Err("Steam did not shut down within 30s".into())
+}
+
+/// Launch Steam (detached, `-silent`) and wait briefly for it to come up.
+pub fn start_steam() -> Result<LibraryDto, String> {
+    if steam_running() {
+        return scan();
+    }
+    Command::new("steam")
+        .arg("-silent")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("failed to launch Steam: {e}"))?;
+    for _ in 0..40 {
+        if steam_running() {
+            break;
+        }
+        sleep(Duration::from_millis(500));
     }
     scan()
 }

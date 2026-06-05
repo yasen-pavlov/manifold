@@ -229,17 +229,56 @@ function RowMenu({ anchor, game, onAction, onClose }) {
 }
 
 /* ============ Steam-running banner ============ */
-function SteamBanner({ onClose }) {
+function SteamBanner({ onCloseSteam, busy, onDismiss }) {
   return (
     <div className="banner">
       <span className="b-ico"><Icon name="alert" size={17} /></span>
       <div className="b-txt">
-        <b>Steam is running</b> — <span>changes won't stick. Manifold writes are disabled until Steam closes, so it never clobbers an in-flight config.</span>
+        <b>Steam is running</b> — <span>changes won't stick until Steam is closed. Manifold will offer to close Steam when you apply, or close it now.</span>
       </div>
       <div className="b-spacer" />
-      <button className="b-act"><Icon name="power" size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Close Steam</button>
-      <button className="b-dismiss" onClick={onClose} title="Dismiss (simulate Steam closed)"><Icon name="x" size={14} /></button>
+      <button className="b-act" onClick={onCloseSteam} disabled={busy}>
+        <Icon name={busy ? 'refresh' : 'power'} size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
+        {busy ? 'Closing…' : 'Close Steam'}
+      </button>
+      <button className="b-dismiss" onClick={onDismiss} title="Dismiss this banner"><Icon name="x" size={14} /></button>
     </div>
+  );
+}
+
+/* ============ Steam close/apply/reopen confirm ============ */
+function SteamConfirm({ count, onChoose }) {
+  return (
+    <>
+      <div className="scrim" onClick={() => onChoose('cancel')} />
+      <div className="sheet" style={{ width: 460 }} role="dialog">
+        <div className="sheet-head">
+          <div>
+            <div className="sh-title"><Icon name="power" size={17} style={{ color: 'var(--warn)' }} />Steam is running</div>
+            <div className="sh-sub">Applying to <b>{count} game{count !== 1 ? 's' : ''}</b> needs Steam closed.</div>
+          </div>
+        </div>
+        <div className="sheet-body">
+          <div className="note warn">
+            <span className="n-ico"><Icon name="alert" size={15} /></span>
+            <div>
+              Steam rewrites its config on exit, so Manifold only writes while it's closed.
+              Closing Steam will also <b>close any running game</b>.
+            </div>
+          </div>
+        </div>
+        <div className="sheet-foot" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <button className="btn ghost" onClick={() => onChoose('cancel')}>Cancel</button>
+          <div style={{ flex: 1 }} />
+          <button className="btn" onClick={() => onChoose('closed')}>
+            <Icon name="power" size={14} />Close &amp; apply
+          </button>
+          <button className="btn primary" onClick={() => onChoose('reopen')}>
+            <Icon name="refresh" size={14} />Close, apply &amp; reopen
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -278,4 +317,4 @@ function EmptyState({ onRetry }) {
   );
 }
 
-export { LaunchSheet, CompatPicker, RowMenu, SteamBanner, Toasts, EmptyState, Popover, composeLaunch };
+export { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, Toasts, EmptyState, Popover, composeLaunch };

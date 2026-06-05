@@ -24,6 +24,16 @@ fn set_compat_tool(changes: Vec<(String, String)>) -> Result<LibraryDto, String>
 }
 
 #[tauri::command]
+fn close_steam() -> Result<LibraryDto, String> {
+    steam::close_steam()
+}
+
+#[tauri::command]
+fn start_steam() -> Result<LibraryDto, String> {
+    steam::start_steam()
+}
+
+#[tauri::command]
 fn load_presets() -> Result<PresetStore, String> {
     store::load()
 }
@@ -41,6 +51,8 @@ pub fn run() {
             scan_library,
             set_launch_options,
             set_compat_tool,
+            close_steam,
+            start_steam,
             load_presets,
             save_presets
         ])

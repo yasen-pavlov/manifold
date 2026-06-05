@@ -37,5 +37,8 @@ npm run tauri build    # release bundle
 - **Names for owned/uninstalled games (done):** `appinfo.rs` parses Steam's local binary
   `appcache/appinfo.vdf` (v27/28/29, string-table aware) to resolve appid → name, so games
   without an `appmanifest` show their real name instead of `App <id>` (offline, no network).
+- **Steam process control (done):** `close_steam` (`steam -shutdown` + wait) / `start_steam`
+  commands. The banner/footer expose Close/Start, and applying changes while Steam is running
+  prompts to close → apply → (optionally) reopen Steam.
 - **Next:** the structured option builder (categorized Proton/MangoHud/DXVK menu with
   descriptions), then stretch items (ProtonDB links, preset sharing).

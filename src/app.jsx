@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./icons.jsx";
 import { GAMES, PRESETS, OPTIONS, compatName, setCompatTools } from "./data.jsx";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table.jsx";
-import { LaunchSheet, CompatPicker, RowMenu, SteamBanner, Toasts, EmptyState } from "./surfaces.jsx";
+import { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, Toasts, EmptyState } from "./surfaces.jsx";
 import { PresetsManager, ItemEditor, BackupsView, CommandPalette } from "./presets.jsx";
 
 let _tid = 0;
@@ -32,6 +32,8 @@ function App() {
   const [editor, setEditor] = aS(null);               // item | null
   const [cmdk, setCmdk] = aS(false);
   const [toasts, setToasts] = aS([]);
+  const [steamPrompt, setSteamPrompt] = aS(null); // { count, run(mode) } | null
+  const [steamBusy, setSteamBusy] = aS(false);
 
   /* ---------- toasts ---------- */
   const toast = aC((t) => {
@@ -73,7 +75,6 @@ function App() {
   const headState = allSelected ? true : someSelected ? 'dash' : false;
 
   const targets = aM(() => games.filter((g) => selected.has(g.id)), [games, selected]);
-  const writesBlocked = steamRunning;
 
   /* ---------- selection ---------- */
   const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -87,17 +88,54 @@ function App() {
   const selectAll = () => setSelected(new Set(filteredIds));
   const toggleFilter = (id) => setFilters((f) => ({ ...f, [id]: !f[id] }));
 
-  /* ---------- writes (guarded, via the Rust backend) ---------- */
-  const guard = () => {
-    if (writesBlocked) { toast({ kind: 'err', title: 'Steam is running', sub: 'Close Steam before writing — changes won’t stick.' }); return false; }
-    return true;
-  };
+  /* ---------- writes (via the Rust backend) ---------- */
   const refreshFrom = (lib) => {
     setCompatTools(lib.compat_tools || []);
     setGames(Array.isArray(lib.games) ? lib.games : []);
     setSteamRunning(!!lib.steam_running);
   };
   const plural = (n) => `${n} game${n !== 1 ? 's' : ''}`;
+
+  /* ---------- Steam process control ---------- */
+  const closeSteam = async () => {
+    setSteamBusy(true);
+    try {
+      const lib = await invoke('close_steam');
+      refreshFrom(lib);
+      toast({ kind: 'ok', title: 'Steam closed', sub: 'Changes will stick now.' });
+    } catch (e) {
+      toast({ kind: 'err', title: 'Could not close Steam', sub: String(e) });
+    } finally { setSteamBusy(false); }
+  };
+  const startSteam = async () => {
+    setSteamBusy(true);
+    try {
+      const lib = await invoke('start_steam');
+      refreshFrom(lib);
+      toast({ kind: 'ok', title: 'Steam started' });
+    } catch (e) {
+      toast({ kind: 'err', title: 'Could not start Steam', sub: String(e) });
+    } finally { setSteamBusy(false); }
+  };
+
+  // Run a write thunk, handling the case where Steam is running. mode:
+  //   'reopen' close→write→reopen · 'closed' close→write · (no prompt when stopped)
+  const runWrite = async (writeThunk, mode) => {
+    if (mode === 'cancel') return;
+    try {
+      if (mode === 'reopen' || mode === 'closed') {
+        setSteamBusy(true);
+        const c = await invoke('close_steam'); refreshFrom(c);
+      }
+      await writeThunk();
+      if (mode === 'reopen') {
+        const s = await invoke('start_steam'); refreshFrom(s);
+        toast({ kind: 'ok', title: 'Steam reopened' });
+      }
+    } catch (e) {
+      toast({ kind: 'err', title: 'Failed', sub: String(e) });
+    } finally { setSteamBusy(false); }
+  };
 
   // changes: [[appid, value], ...]
   const writeLaunch = async (changes, { title, sub, undo } = {}) => {
@@ -119,27 +157,34 @@ function App() {
     }
   };
 
+  // If Steam is running, prompt to close (and optionally reopen); else write directly.
+  const applyWrite = (count, writeThunk) => {
+    if (steamRunning) {
+      setSteamPrompt({ count, run: (mode) => { setSteamPrompt(null); runWrite(writeThunk, mode); } });
+    } else {
+      writeThunk();
+    }
+  };
+
   const applyLaunch = (ids, value) => {
-    if (!guard()) return;
     const ts = games.filter((g) => ids.includes(g.id));
     if (ts.length === 0) return;
     const undo = { kind: 'launch', changes: ts.map((g) => [g.appid, g.launch || '']) };
     const changes = ts.map((g) => [g.appid, value]);
     setLaunchTargets(null);
-    writeLaunch(changes, {
+    applyWrite(ts.length, () => writeLaunch(changes, {
       title: value ? `Launch options set · ${plural(ts.length)}` : `Launch options cleared · ${plural(ts.length)}`,
       sub: value || undefined,
       undo,
-    });
+    }));
   };
   const applyCompat = (ids, compat) => {
-    if (!guard()) return;
     const ts = games.filter((g) => ids.includes(g.id));
     if (ts.length === 0) return;
     const undo = { kind: 'compat', changes: ts.map((g) => [g.appid, g.compat || 'default']) };
     const changes = ts.map((g) => [g.appid, compat]);
     setCompatPop(null);
-    writeCompat(changes, { title: `Compatibility set · ${plural(ts.length)}`, sub: compatName(compat), undo });
+    applyWrite(ts.length, () => writeCompat(changes, { title: `Compatibility set · ${plural(ts.length)}`, sub: compatName(compat), undo }));
   };
   const clearLaunch = (ids) => applyLaunch(ids, '');
   const onUndo = (t) => {
@@ -208,8 +253,7 @@ function App() {
     c.push({ id: 'g_bak', group: 'Go to', icon: 'history', name: 'Backups', run: () => setTab('backups') });
     c.push({ id: 'n_pre', group: 'Create', icon: 'plus', name: 'New preset', run: () => { setTab('presets'); setEditor({ kind: 'preset' }); } });
     c.push({ id: 'n_opt', group: 'Create', icon: 'plus', name: 'New single option', run: () => { setTab('presets'); setEditor({ kind: 'option' }); } });
-    c.push({ id: 's_steam', group: 'Simulate', icon: 'power', name: steamRunning ? 'Mark Steam as stopped' : 'Mark Steam as running', run: () => { setSteamRunning((v) => !v); setBannerDismissed(false); } });
-    c.push({ id: 's_empty', group: 'Simulate', icon: 'folder', name: empty ? 'Restore library' : 'Show empty / first-run state', run: () => setEmpty((v) => !v) });
+    c.push({ id: 'steam_ctl', group: 'Steam', icon: 'power', name: steamRunning ? 'Close Steam' : 'Start Steam', run: () => (steamRunning ? closeSteam() : startSteam()) });
     c.push({ id: 'l_rescan', group: 'Library', icon: 'refresh', name: 'Re-scan library', run: () => loadLibrary() });
     return c;
   }, [targets, steamRunning, empty, games, counts]);
@@ -320,7 +364,7 @@ function App() {
         <button className="tb-btn" onClick={() => setCmdk(true)}><Icon name="command" size={14} />Search<span className="kbd">⌘K</span></button>
       </div>
 
-      {showBanner && <SteamBanner onClose={() => setBannerDismissed(true)} />}
+      {showBanner && <SteamBanner onCloseSteam={closeSteam} busy={steamBusy} onDismiss={() => setBannerDismissed(true)} />}
 
       {tab === 'library' && (empty ? (
         <EmptyState onRetry={() => loadLibrary()} />
@@ -343,7 +387,7 @@ function App() {
               onSetCompat={() => setCompatPop({ anchor: centerAnchor(), targets })}
               onClearLaunch={() => clearLaunch(targets.map((t) => t.id))}
               onClear={clearSel}
-              disabled={writesBlocked}
+              disabled={steamBusy}
             />
           )}
         </>
@@ -356,7 +400,7 @@ function App() {
       )}
       {tab === 'backups' && <BackupsView onRestore={(b) => toast({ kind: 'ok', title: 'Backup restored', sub: `${b.when} · ${b.games} games` })} />}
 
-      <Footer total={games.length} installed={counts.installed} shown={rows.length} selected={selected.size} steamRunning={steamRunning} onToggleSteam={() => { setSteamRunning((v) => !v); setBannerDismissed(false); }} />
+      <Footer total={games.length} installed={counts.installed} shown={rows.length} selected={selected.size} steamRunning={steamRunning} steamBusy={steamBusy} onCloseSteam={closeSteam} onStartSteam={startSteam} />
 
       {/* overlays */}
       {launchTargets && (
@@ -373,6 +417,7 @@ function App() {
       {rowMenu && <RowMenu anchor={rowMenu.anchor} game={rowMenu.game} onAction={rowAction} onClose={() => setRowMenu(null)} />}
       {editor && <ItemEditor item={editor} onSave={saveItem} onClose={() => setEditor(null)} />}
       {cmdk && <CommandPalette commands={commands} onClose={() => setCmdk(false)} />}
+      {steamPrompt && <SteamConfirm count={steamPrompt.count} onChoose={steamPrompt.run} />}
 
       <Toasts toasts={toasts} onDismiss={dismissToast} onUndo={onUndo} />
     </div>
