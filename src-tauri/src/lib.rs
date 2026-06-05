@@ -51,6 +51,11 @@ fn discover_steam_roots() -> Vec<RootCandidate> {
 }
 
 #[tauri::command]
+fn get_system_scale() -> f64 {
+    settings::system_scale()
+}
+
+#[tauri::command]
 fn load_presets() -> Result<PresetStore, String> {
     store::load()
 }
@@ -73,6 +78,7 @@ pub fn run() {
             load_settings,
             save_settings,
             discover_steam_roots,
+            get_system_scale,
             load_presets,
             save_presets
         ])

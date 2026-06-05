@@ -14,11 +14,16 @@ function resolveControlsSide(pref) {
   return OS === 'mac' ? 'left' : 'right'; // auto
 }
 const clampScale = (v) => Math.min(2, Math.max(0.6, Math.round((Number(v) || 1) * 100) / 100));
-// Use CSS `zoom` (a layout zoom) rather than the webview zoom API: it re-lays-out and
-// re-rasterizes text/SVG at the target size, so scaling stays crisp instead of being a
-// bitmap upscale (which looks blurry on WebKitGTK).
-function applyZoom(scale) {
-  try { document.documentElement.style.zoom = String(clampScale(scale)); } catch { /* no-op */ }
+// `target` is the desired visual scale vs native (e.g. 1.2 = 120%). We apply it with CSS
+// `zoom` (a layout zoom: re-lays-out and re-rasterizes text/SVG, so it stays crisp instead
+// of a blurry bitmap upscale). Divide by devicePixelRatio so that if WebKitGTK already
+// applied device scaling we don't double up (and more of the scale comes from crisp device
+// pixels when available).
+function applyZoom(target) {
+  try {
+    const dpr = window.devicePixelRatio || 1;
+    document.documentElement.style.zoom = String(clampScale(target) / dpr);
+  } catch { /* no-op */ }
 }
 import { PresetsManager, ItemEditor, BackupsView, CommandPalette } from "./presets.jsx";
 
@@ -49,10 +54,13 @@ function App() {
   const [toasts, setToasts] = aS([]);
   const [steamPrompt, setSteamPrompt] = aS(null); // { count, run(mode) } | null
   const [steamBusy, setSteamBusy] = aS(false);
-  const [settings, setSettings] = aS({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 1 });
+  const [settings, setSettings] = aS({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 0 });
   const [settingsOpen, setSettingsOpen] = aS(false);
   const [discoveredRoots, setDiscoveredRoots] = aS([]);
   const [steamRoot, setSteamRoot] = aS('');
+  const [systemScale, setSystemScale] = aS(1);
+  // Effective scale target: explicit override (ui_scale > 0), else follow the desktop.
+  const effectiveScale = (s) => (s && s.ui_scale > 0 ? s.ui_scale : systemScale);
 
   /* ---------- toasts ---------- */
   const toast = aC((t) => {
@@ -331,7 +339,16 @@ function App() {
     (async () => {
       try {
         const s = await invoke('load_settings');
-        if (!cancelled && s) { setSettings(s); applyZoom(s.ui_scale ?? 1); }
+        let sys = 0;
+        try { sys = await invoke('get_system_scale'); } catch { /* none */ }
+        if (!cancelled) {
+          if (s) setSettings(s);
+          // Desktop scale: explicit hint (Linux GDK) if any, else the webview's
+          // devicePixelRatio (already reflects OS scale on Windows/macOS).
+          const os = sys > 0 ? sys : (window.devicePixelRatio || 1);
+          setSystemScale(os);
+          applyZoom(s && s.ui_scale > 0 ? s.ui_scale : os);
+        }
         const roots = await invoke('discover_steam_roots');
         if (!cancelled && Array.isArray(roots)) setDiscoveredRoots(roots);
       } catch (e) {
@@ -344,7 +361,7 @@ function App() {
   const saveSettings = async (next) => {
     setSettings(next);
     setSettingsOpen(false);
-    applyZoom(next.ui_scale ?? 1);
+    applyZoom(effectiveScale(next));
     try {
       await invoke('save_settings', { settings: next });
       toast({ kind: 'ok', title: 'Settings saved' });
@@ -353,7 +370,7 @@ function App() {
       toast({ kind: 'err', title: 'Could not save settings', sub: String(e) });
     }
   };
-  const closeSettings = () => { applyZoom(settings.ui_scale ?? 1); setSettingsOpen(false); };
+  const closeSettings = () => { applyZoom(effectiveScale(settings)); setSettingsOpen(false); };
 
   /* ---------- dev: deep-link to a surface for screenshots ---------- */
   aE(() => {
@@ -476,6 +493,7 @@ function App() {
           settings={settings}
           effectiveRoot={steamRoot}
           discovered={discoveredRoots}
+          systemScale={systemScale}
           onPreviewScale={applyZoom}
           onSave={saveSettings}
           onClose={closeSettings}

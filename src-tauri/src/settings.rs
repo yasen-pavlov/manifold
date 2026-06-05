@@ -16,7 +16,39 @@ fn default_window_controls() -> String {
 }
 
 fn default_ui_scale() -> f64 {
-    1.0
+    0.0 // 0 = auto (follow the desktop / GDK scale)
+}
+
+/// The desktop's intended UI scale, when the platform exposes one we can read.
+///
+/// On Linux/GTK we derive it from GDK_SCALE x GDK_DPI_SCALE (falling back to
+/// QT_SCALE_FACTOR). On Windows/macOS there are no such vars and the webview's
+/// `devicePixelRatio` already reflects the OS scale, so we return 0.0 to mean
+/// "no hint; let the frontend use devicePixelRatio".
+pub fn system_scale() -> f64 {
+    let parse = |k: &str| {
+        std::env::var(k)
+            .ok()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .filter(|n| n.is_finite() && *n > 0.0)
+    };
+    let gdk = parse("GDK_SCALE");
+    let dpi = parse("GDK_DPI_SCALE");
+    let qt = parse("QT_SCALE_FACTOR");
+    if gdk.is_none() && dpi.is_none() && qt.is_none() {
+        return 0.0; // no desktop-scale hint on this platform
+    }
+    let mut s = gdk.unwrap_or(1.0) * dpi.unwrap_or(1.0);
+    if (s - 1.0).abs() < 0.001 {
+        if let Some(q) = qt {
+            s = q;
+        }
+    }
+    if s.is_finite() && s > 0.0 {
+        s.clamp(0.5, 3.0)
+    } else {
+        0.0
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

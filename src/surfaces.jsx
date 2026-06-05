@@ -312,19 +312,26 @@ function SteamConfirm({ count, onChoose }) {
 }
 
 /* ============ Settings sheet ============ */
-function SettingsSheet({ settings, effectiveRoot, discovered, onPreviewScale, onSave, onClose }) {
+function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPreviewScale, onSave, onClose }) {
+  const sys = typeof systemScale === 'number' && systemScale > 0 ? systemScale : 1;
   const [root, setRoot] = uS(settings.steam_root || '');
   const [silent, setSilent] = uS(settings.silent_start !== false);
   const [wc, setWc] = uS(settings.window_controls || 'auto');
-  const [scale, setScale] = uS(typeof settings.ui_scale === 'number' ? settings.ui_scale : 1);
+  const [scaleAuto, setScaleAuto] = uS(!(settings.ui_scale > 0));
+  const [manualScale, setManualScale] = uS(settings.ui_scale > 0 ? settings.ui_scale : sys);
   const trimmed = root.trim();
   const usingAuto = trimmed === '';
   const WC_OPTS = [['auto', 'Auto'], ['left', 'Left'], ['right', 'Right'], ['hidden', 'Hidden']];
-  const setScaleLive = (v) => {
-    const c = Math.min(2, Math.max(0.6, Math.round(v * 100) / 100));
-    setScale(c);
-    if (onPreviewScale) onPreviewScale(c);
+  const effScale = scaleAuto ? sys : manualScale;
+  const preview = (v) => { if (onPreviewScale) onPreviewScale(v); };
+  const stepScale = (delta) => {
+    const base = scaleAuto ? sys : manualScale;
+    const c = Math.min(2, Math.max(0.6, Math.round((base + delta) * 100) / 100));
+    setScaleAuto(false);
+    setManualScale(c);
+    preview(c);
   };
+  const useAutoScale = () => { setScaleAuto(true); preview(sys); };
   return (
     <>
       <div className="scrim" onClick={onClose} />
@@ -395,19 +402,24 @@ function SettingsSheet({ settings, effectiveRoot, discovered, onPreviewScale, on
           <div className="field">
             <label>Interface scale</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="btn" onClick={() => setScaleLive(scale - 0.1)} disabled={scale <= 0.6} title="Smaller"><Icon name="minus" size={14} /></button>
-              <span className="mono tnum" style={{ minWidth: 54, textAlign: 'center', fontSize: 13 }}>{Math.round(scale * 100)}%</span>
-              <button className="btn" onClick={() => setScaleLive(scale + 0.1)} disabled={scale >= 2} title="Larger"><Icon name="plus" size={14} /></button>
-              <button className="btn ghost" onClick={() => setScaleLive(1)} disabled={Math.round(scale * 100) === 100}>Reset</button>
+              <button className="btn" onClick={() => stepScale(-0.1)} disabled={effScale <= 0.6} title="Smaller"><Icon name="minus" size={14} /></button>
+              <span className="mono tnum" style={{ minWidth: 56, textAlign: 'center', fontSize: 13 }}>{Math.round(effScale * 100)}%</span>
+              <button className="btn" onClick={() => stepScale(0.1)} disabled={effScale >= 2} title="Larger"><Icon name="plus" size={14} /></button>
+              <button className={'btn' + (scaleAuto ? ' primary' : '')} onClick={useAutoScale} title="Follow desktop scale" style={{ marginLeft: 4 }}>
+                <Icon name="check" size={13} style={{ opacity: scaleAuto ? 1 : 0.5 }} />Auto
+              </button>
             </div>
-            <div className="hint">Zoom the whole interface (60-200%). Previews live; Cancel reverts.</div>
+            <div className="hint">
+              <b>Auto</b> matches your desktop scale ({Math.round(sys * 100)}%). Step it to set a custom scale.
+              Previews live; Cancel reverts.
+            </div>
           </div>
         </div>
 
         <div className="sheet-foot">
           <div style={{ flex: 1 }} />
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scale })}>
+          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale })}>
             <Icon name="check" size={14} />Save
           </button>
         </div>
