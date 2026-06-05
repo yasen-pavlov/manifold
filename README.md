@@ -31,4 +31,8 @@ npm run tauri build    # release bundle
   re-parse verification, timestamped backup (`~/.local/share/manifold/backups/`) and atomic
   rename. Frontend applies changes via the backend and refreshes from disk; Undo re-writes
   the previous per-game values.
-- **Next:** preset persistence (`~/.config/manifold/`), then the structured option builder.
+- **Milestone 3 (done):** preset/option persistence — `store.rs` loads/saves
+  `~/.config/manifold/presets.json` (seeded with defaults on first run, atomic writes);
+  the frontend loads on startup and persists on every preset/option edit.
+- **Next:** the structured option builder (categorized Proton/MangoHud/DXVK menu with
+  descriptions), then stretch items (ProtonDB links, preset sharing).

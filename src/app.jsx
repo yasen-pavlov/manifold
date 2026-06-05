@@ -149,27 +149,36 @@ function App() {
     else if (t.undo.kind === 'compat') writeCompat(t.undo.changes, { title: 'Reverted compatibility' });
   };
 
-  /* ---------- preset CRUD ---------- */
+  /* ---------- preset CRUD (persisted to ~/.config/manifold/presets.json) ---------- */
+  const persistPresets = (nextPresets, nextOptions) => {
+    setPresets(nextPresets);
+    setOptions(nextOptions);
+    invoke('save_presets', { store: { presets: nextPresets, options: nextOptions } })
+      .catch((e) => toast({ kind: 'err', title: 'Could not save presets', sub: String(e) }));
+  };
   const saveItem = (item) => {
-    const list = item.kind === 'preset' ? presets : options;
-    const setList = item.kind === 'preset' ? setPresets : setOptions;
-    const otherList = item.kind === 'preset' ? options : presets;
-    const setOther = item.kind === 'preset' ? setOptions : setPresets;
-    // if kind changed, remove from other list
-    setOther((l) => l.filter((x) => x.id !== item.id));
-    if (item.id && list.some((x) => x.id === item.id)) setList((l) => l.map((x) => (x.id === item.id ? item : x)));
-    else setList((l) => [...l, { ...item, id: item.id || (item.kind + '_' + Date.now()) }]);
+    const id = item.id || (item.kind + '_' + Date.now());
+    const norm = { ...item, id };
+    let p = presets, o = options;
+    if (item.kind === 'preset') {
+      o = options.filter((x) => x.id !== id); // in case the kind was switched
+      p = presets.some((x) => x.id === id) ? presets.map((x) => (x.id === id ? norm : x)) : [...presets, norm];
+    } else {
+      p = presets.filter((x) => x.id !== id);
+      o = options.some((x) => x.id === id) ? options.map((x) => (x.id === id ? norm : x)) : [...options, norm];
+    }
+    persistPresets(p, o);
     setEditor(null);
     toast({ kind: 'ok', title: `${item.kind === 'preset' ? 'Preset' : 'Option'} saved`, sub: item.name });
   };
   const deleteItem = (item) => {
-    const setList = item.kind === 'preset' ? setPresets : setOptions;
-    setList((l) => l.filter((x) => x.id !== item.id));
+    persistPresets(presets.filter((x) => x.id !== item.id), options.filter((x) => x.id !== item.id));
     toast({ kind: 'ok', title: 'Deleted', sub: item.name });
   };
   const duplicateItem = (item) => {
-    const setList = item.kind === 'preset' ? setPresets : setOptions;
-    setList((l) => [...l, { ...item, id: item.kind + '_' + Date.now(), name: item.name + ' copy' }]);
+    const copy = { ...item, id: item.kind + '_' + Date.now(), name: item.name + ' copy' };
+    if (item.kind === 'preset') persistPresets([...presets, copy], options);
+    else persistPresets(presets, [...options, copy]);
   };
 
   /* ---------- row menu actions ---------- */
@@ -233,6 +242,22 @@ function App() {
   }, []);
 
   aE(() => { loadLibrary({ quiet: true }); }, [loadLibrary]);
+
+  /* ---------- load persisted presets/options from the backend ---------- */
+  aE(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const store = await invoke('load_presets');
+        if (cancelled || !store) return;
+        setPresets(Array.isArray(store.presets) ? store.presets : []);
+        setOptions(Array.isArray(store.options) ? store.options : []);
+      } catch (e) {
+        // not under Tauri (e.g. vite preview) — keep the in-memory seed defaults
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   /* ---------- dev: deep-link to a surface for screenshots ---------- */
   aE(() => {

@@ -1,7 +1,9 @@
 mod steam;
+mod store;
 mod vdfedit;
 
 use steam::LibraryDto;
+use store::PresetStore;
 
 #[tauri::command]
 fn scan_library() -> Result<LibraryDto, String> {
@@ -20,6 +22,16 @@ fn set_compat_tool(changes: Vec<(String, String)>) -> Result<LibraryDto, String>
     steam::write_compat_tool(changes)
 }
 
+#[tauri::command]
+fn load_presets() -> Result<PresetStore, String> {
+    store::load()
+}
+
+#[tauri::command]
+fn save_presets(store: PresetStore) -> Result<(), String> {
+    store::save(store)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -27,7 +39,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_library,
             set_launch_options,
-            set_compat_tool
+            set_compat_tool,
+            load_presets,
+            save_presets
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
