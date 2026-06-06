@@ -32,6 +32,20 @@ function WindowControls({ side }) {
   );
 }
 
+/* ============ Modal scrim (click or Escape to close) ============ */
+function Scrim({ onClose }) {
+  return (
+    <div
+      className="scrim"
+      role="button"
+      tabIndex={-1}
+      aria-label="Close"
+      onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    />
+  );
+}
+
 /* ============ Popover (anchored) ============ */
 function Popover({ anchor, onClose, children, width }) {
   const ref = uR(null);
@@ -64,7 +78,7 @@ function CompatPicker({ anchor, targets, onPick, onClose }) {
   const current = mixed ? null : [...vals][0];
   return (
     <Popover anchor={anchor} onClose={onClose} width={258}>
-      <div className="pop-label">Compatibility · {targets.length} game{targets.length !== 1 ? 's' : ''}{mixed ? ' · mixed' : ''}</div>
+      <div className="pop-label">Compatibility · {targets.length} game{targets.length === 1 ? '' : 's'}{mixed ? ' · mixed' : ''}</div>
       {COMPAT_TOOLS.map((c) => (
         <button key={c.id} className={'pop-item' + (current === c.id ? ' on' : '')} onClick={() => onPick(c.id)}>
           <span className="pi-check">{current === c.id ? <Icon name="check" size={13} /> : null}</span>
@@ -112,13 +126,13 @@ function SteamBanner({ onCloseSteam, busy, onDismiss }) {
 /* ============ Steam close/apply/reopen confirm ============ */
 function SteamConfirm({ count, onChoose }) {
   return (
-    <>
-      <div className="scrim" onClick={() => onChoose('cancel')} />
-      <div className="sheet" style={{ width: 460 }} role="dialog">
+    <dialog className="modal-host" open aria-label="Steam is running">
+      <Scrim onClose={() => onChoose('cancel')} />
+      <div className="sheet" style={{ width: 460 }}>
         <div className="sheet-head">
           <div>
             <div className="sh-title"><Icon name="power" size={17} style={{ color: 'var(--warn)' }} />Steam is running</div>
-            <div className="sh-sub">Applying to <b>{count} game{count !== 1 ? 's' : ''}</b> needs Steam closed.</div>
+            <div className="sh-sub">Applying to <b>{count} game{count === 1 ? '' : 's'}</b> needs Steam closed.</div>
           </div>
         </div>
         <div className="sheet-body">
@@ -141,7 +155,7 @@ function SteamConfirm({ count, onChoose }) {
           </button>
         </div>
       </div>
-    </>
+    </dialog>
   );
 }
 
@@ -151,10 +165,12 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
   const [root, setRoot] = uS(settings.steam_root || '');
   const [silent, setSilent] = uS(settings.silent_start !== false);
   const [wc, setWc] = uS(settings.window_controls || 'auto');
-  const [scaleAuto, setScaleAuto] = uS(!(settings.ui_scale > 0));
+  const [scaleAuto, setScaleAuto] = uS(settings.ui_scale <= 0);
   const [manualScale, setManualScale] = uS(settings.ui_scale > 0 ? settings.ui_scale : sys);
   const trimmed = root.trim();
   const usingAuto = trimmed === '';
+  const detectedSuffix = effectiveRoot ? ` (${effectiveRoot})` : '';
+  const detectPlaceholder = `Auto-detect${detectedSuffix}`;
   const WC_OPTS = [['auto', 'Auto'], ['left', 'Left'], ['right', 'Right'], ['hidden', 'Hidden']];
   const effScale = scaleAuto ? sys : manualScale;
   const preview = (v) => { if (onPreviewScale) onPreviewScale(v); };
@@ -167,9 +183,9 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
   };
   const useAutoScale = () => { setScaleAuto(true); preview(sys); };
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="sheet" style={{ width: 520 }} role="dialog">
+    <dialog className="modal-host" open aria-label="Settings">
+      <Scrim onClose={onClose} />
+      <div className="sheet" style={{ width: 520 }}>
         <div className="sheet-head">
           <div>
             <div className="sh-title"><Icon name="settings" size={17} style={{ color: 'var(--acc)' }} />Settings</div>
@@ -186,15 +202,15 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
           </div>
 
           <div className="field">
-            <label>Steam path override</label>
-            <input className="mono" value={root} onChange={(e) => setRoot(e.target.value)} spellCheck={false}
-              placeholder={`Auto-detect${effectiveRoot ? ` (${effectiveRoot})` : ''}`} />
+            <label htmlFor="set-steam-root">Steam path override</label>
+            <input id="set-steam-root" className="mono" value={root} onChange={(e) => setRoot(e.target.value)} spellCheck={false}
+              placeholder={detectPlaceholder} />
             <div className="hint">Leave empty to auto-detect. Point at a Steam root (the folder containing <span className="mono">config/</span> and <span className="mono">steamapps/</span>).</div>
           </div>
 
           {discovered.length > 0 && (
             <div className="field">
-              <label>Detected</label>
+              <div className="field-cap">Detected</div>
               <div className="filters" style={{ flexWrap: 'wrap' }}>
                 {discovered.map((d) => (
                   <button key={d.path} className={'chip' + (trimmed === d.path ? ' on' : '')} onClick={() => setRoot(d.path)} title={d.valid ? 'Valid Steam root' : 'Folder exists but no config/steamapps found'}>
@@ -209,32 +225,32 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
 
           <div className="section-label" style={{ marginTop: 18 }}><Icon name="power" size={13} />Steam launch<span className="sl-line" /></div>
           <div className="field">
-            <label>Starting Steam</label>
+            <div className="field-cap">Starting Steam</div>
             <div className="seg">
               <button className={silent ? 'on' : ''} onClick={() => setSilent(true)}>Silent (tray)</button>
-              <button className={!silent ? 'on' : ''} onClick={() => setSilent(false)}>Normal window</button>
+              <button className={silent ? '' : 'on'} onClick={() => setSilent(false)}>Normal window</button>
             </div>
             <div className="hint">{silent ? 'Start Steam minimized to the tray (steam -silent).' : 'Start Steam with its window shown.'}</div>
           </div>
 
           <div className="section-label" style={{ marginTop: 18 }}><Icon name="square" size={12} />Window<span className="sl-line" /></div>
           <div className="field">
-            <label>Window-control buttons</label>
+            <div className="field-cap">Window-control buttons</div>
             <div className="seg">
               {WC_OPTS.map(([id, label]) => (
                 <button key={id} className={wc === id ? 'on' : ''} onClick={() => setWc(id)}>{label}</button>
               ))}
             </div>
             <div className="hint">
-              The native title bar is off; these are Manifold's own controls.
-              <b> Auto</b> puts them where your OS does (macOS left, Linux/Windows right).
-              <b> Hidden</b> removes them (use your compositor, e.g. Hyprland, to manage the window).
+              The native title bar is off; these are Manifold's own controls.{" "}
+              <b>Auto</b> puts them where your OS does (macOS left, Linux/Windows right).{" "}
+              <b>Hidden</b> removes them (use your compositor, e.g. Hyprland, to manage the window).
             </div>
           </div>
 
           <div className="section-label" style={{ marginTop: 18 }}><Icon name="eye" size={13} />Interface<span className="sl-line" /></div>
           <div className="field">
-            <label>Interface scale</label>
+            <div className="field-cap">Interface scale</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button className="btn" onClick={() => stepScale(-0.1)} disabled={effScale <= 0.6} title="Smaller"><Icon name="minus" size={14} /></button>
               <span className="mono tnum" style={{ minWidth: 56, textAlign: 'center', fontSize: 13 }}>{Math.round(effScale * 100)}%</span>
@@ -258,7 +274,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
           </button>
         </div>
       </div>
-    </>
+    </dialog>
   );
 }
 

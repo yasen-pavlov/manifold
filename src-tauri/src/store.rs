@@ -219,6 +219,33 @@ mod tests {
     }
 
     #[test]
+    fn load_seeds_then_save_round_trips_via_xdg() {
+        let _g = crate::TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let xdg_prev = std::env::var("XDG_CONFIG_HOME").ok();
+        let dir = std::env::temp_dir().join(format!("manifold_store_xdg_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        std::env::set_var("XDG_CONFIG_HOME", &dir);
+
+        // first load seeds defaults and writes the file
+        let seeded = load().unwrap();
+        assert!(!seeded.presets.is_empty());
+        assert!(dir.join("manifold/presets.json").exists());
+
+        // mutate + save + reload
+        let mut s = seeded;
+        s.presets.push(item("p_x", "X", "d", "game %command%"));
+        save(s).unwrap();
+        let again = load().unwrap();
+        assert!(again.presets.iter().any(|p| p.id == "p_x"));
+
+        match xdg_prev {
+            Some(x) => std::env::set_var("XDG_CONFIG_HOME", x),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn migrates_legacy_two_list_file() {
         let dir = std::env::temp_dir().join(format!("manifold_migrate_{}", std::process::id()));
         let path = dir.join("presets.json");

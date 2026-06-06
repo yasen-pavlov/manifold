@@ -21,7 +21,7 @@ const GAMES = [
   g('Helldivers 2',                553850,  true,  'exp',     'gamescope_proton %command%', 38.9),
   g('The Witcher 3: Wild Hunt',    292030,  true,  'cachyos', 'PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%', 49.1),
   g('Hades II',                    1145350, true,  'exp',     'game %command%', 9.3),
-  g('Red Dead Redemption 2',       1174180, true,  'cachyos', 'gamescope_native %command%', 119.0),
+  g('Red Dead Redemption 2',       1174180, true,  'cachyos', 'gamescope_native %command%', 119),
   g('Hollow Knight: Silksong',     1030300, false, 'default', '', 0),
   g('Stardew Valley',              413150,  true,  'default', '', 0.9),
   g('Factorio',                    427520,  true,  'default', 'game %command%', 2.1),
@@ -29,7 +29,7 @@ const GAMES = [
   g('Sekiro: Shadows Die Twice',   814380,  true,  'cachyos', 'game_xwayland %command%', 14.8),
   g('Dark Souls III',              374320,  false, 'default', '', 0),
   g('Death Stranding',             1190460, true,  'cachyos', 'PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%', 66.3),
-  g('Control Ultimate Edition',    870780,  true,  'p90',     'PROTON_LOG=1 game %command%', 42.0),
+  g('Control Ultimate Edition',    870780,  true,  'p90',     'PROTON_LOG=1 game %command%', 42),
   g('Returnal',                    1649240, false, 'default', '', 0),
   g('God of War',                  1593500, true,  'cachyos', 'PROTON_USE_OPTISCALER=1 game %command%', 70.8),
   g('Horizon Zero Dawn',           1151640, true,  'p90',     'mangohud game %command%', 67.5),
@@ -38,24 +38,24 @@ const GAMES = [
   g('Disco Elysium',               632470,  false, 'default', '', 0),
   g('Cyberpunk: Phantom Liberty',  2138330, true,  'cachyos', 'PROTON_DLSS_UPGRADE=1 PROTON_USE_OPTISCALER=1 game %command%', 33.2),
   g('Monster Hunter: World',       582010,  true,  'exp',     'gamescope_proton %command%', 51.7),
-  g('Cuphead',                     268910,  true,  'default', '', 4.0),
+  g('Cuphead',                     268910,  true,  'default', '', 4),
   g('Hollow Knight',               367520,  true,  'default', 'game %command%', 1.4),
-  g('Resident Evil 4',             2050650, true,  'cachyos', 'PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%', 67.0),
+  g('Resident Evil 4',             2050650, true,  'cachyos', 'PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%', 67),
   g('Lies of P',                   1627720, false, 'default', '', 0),
   g('Deep Rock Galactic',          548430,  true,  'p90',     'mangohud game %command%', 7.8),
   g('Vampire Survivors',           1794680, true,  'default', '', 0.3),
-  g('Armored Core VI',             1888160, true,  'cachyos', 'game_xwayland %command%', 58.0),
+  g('Armored Core VI',             1888160, true,  'cachyos', 'game_xwayland %command%', 58),
   g('Persona 5 Royal',             1687950, true,  'exp',     'game %command%', 36.5),
   g('Balatro',                     2379780, true,  'default', '', 0.2),
   g('Nier: Automata',              524220,  true,  'p90',     'PROTON_LOG=1 game_xwayland %command%', 48.3),
   g('Outer Wilds',                 753640,  false, 'default', '', 0),
-  g('Half-Life: Alyx',             546560,  true,  'exp',     'game %command%', 49.0),
+  g('Half-Life: Alyx',             546560,  true,  'exp',     'game %command%', 49),
   g('终末地 · Endfield',           2776660, true,  'cachyos', 'gamescope_native %command%', 24.6),
 ];
 
 // --- helpers ---------------------------------------------------------------
 function parseWrapper(launch) {
-  if (!launch || !launch.trim()) return 'none';
+  if (!launch?.trim()) return 'none';
   const l = launch.toLowerCase();
   if (l.includes('gamescope')) return 'gamescope';
   if (l.includes('xwayland')) return 'xwayland';
@@ -80,8 +80,8 @@ function HiLaunch({ value }) {
   return (
     <>{toks.map((tk, i) => {
       if (tk.t === 'sp') return tk.v;
-      const cls = tk.t === 'cmd' ? 'cmd' : tk.t === 'env' ? 'env' : '';
-      return <span key={i} className={cls}>{tk.v}</span>;
+      const cls = { cmd: 'cmd', env: 'env' }[tk.t] || '';
+      return <span key={`${i}-${tk.v}`} className={cls}>{tk.v}</span>;
     })}</>
   );
 }

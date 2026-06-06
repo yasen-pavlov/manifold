@@ -12,8 +12,19 @@ function CatalogueItem({ item, state, onAdd }) {
   const isWrapper = item.kind === 'wrapper' || item.kind === 'complex';
   const monoName = item.kind === 'toggle' || item.kind === 'choice' || item.kind === 'input' || item.kind === 'tool';
   const added = state === 'added' || state === 'current';
+  const addCls = { current: ' is-current', added: ' is-added' }[state] || '';
+  let title = 'Add';
+  if (isWrapper) title = 'Set wrapper';
+  else if (added) title = 'In line';
+  const add = () => onAdd(item);
   return (
-    <div className={'cat-item' + (added ? ' added' : '')} onClick={() => onAdd(item)}>
+    <div
+      className={'cat-item' + (added ? ' added' : '')}
+      role="button"
+      tabIndex={0}
+      onClick={add}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); add(); } }}
+    >
       <div className="ci-main">
         <div className={'ci-name' + (monoName ? ' mono' : '')}>
           {item.name}
@@ -21,9 +32,9 @@ function CatalogueItem({ item, state, onAdd }) {
         </div>
         <div className="ci-desc">{item.desc}</div>
       </div>
-      <button className={'ci-add' + (state === 'current' ? ' is-current' : state === 'added' ? ' is-added' : '')} title={isWrapper ? 'Set wrapper' : added ? 'In line' : 'Add'}>
-        <Icon name={state === 'current' ? 'check' : added ? 'check' : 'plus'} size={14} />
-      </button>
+      <span className={'ci-add' + addCls} title={title}>
+        <Icon name={added ? 'check' : 'plus'} size={14} />
+      </span>
     </div>
   );
 }
@@ -52,7 +63,10 @@ function Catalogue({ pills, onAdd, onAddCustom }) {
   const grouped = cgM(() => {
     const order = CATEGORIES.map((c) => c.id);
     const m = {};
-    filtered.forEach((c) => { (m[c.cat] = m[c.cat] || []).push(c); });
+    filtered.forEach((c) => {
+      if (!m[c.cat]) m[c.cat] = [];
+      m[c.cat].push(c);
+    });
     return order.filter((id) => m[id]).map((id) => ({ cat: CATEGORIES.find((c) => c.id === id), items: m[id] }));
   }, [filtered]);
 

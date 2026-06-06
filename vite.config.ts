@@ -38,6 +38,7 @@ export default defineConfig(async () => ({
     environment: "jsdom",
     globals: true,
     passWithNoTests: true,
+    setupFiles: ["./vitest.setup.js"],
     include: ["src/**/*.{test,spec}.{js,jsx}"],
     coverage: {
       provider: "v8",
@@ -45,7 +46,7 @@ export default defineConfig(async () => ({
       reportsDirectory: "./coverage",
       all: true,
       include: ["src/**/*.{js,jsx}"],
-      exclude: ["src/main.jsx", "**/*.config.*"],
+      exclude: ["src/main.jsx", "**/*.config.*", "src/**/*.{test,spec}.{js,jsx}"],
     },
   },
 }));

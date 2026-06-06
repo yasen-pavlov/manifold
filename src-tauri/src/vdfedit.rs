@@ -21,67 +21,69 @@ enum Kind {
     Close,
 }
 
+/// Advance past a `//` line comment, returning the index of the newline (or EOF).
+fn skip_line_comment(b: &[u8], mut i: usize) -> usize {
+    while i < b.len() && b[i] != b'\n' {
+        i += 1;
+    }
+    i
+}
+
+/// Lex a quoted string starting at `start` (a `"`). Returns the token and the index
+/// just past the closing quote. VDF escapes (\\ \" \n \t) are decoded.
+fn lex_string(b: &[u8], start: usize) -> Result<(Tok, usize), String> {
+    let mut i = start + 1;
+    let mut content = String::new();
+    loop {
+        if i >= b.len() {
+            return Err("unterminated quoted string".into());
+        }
+        match b[i] {
+            b'\\' if i + 1 < b.len() => {
+                content.push(match b[i + 1] {
+                    b'n' => '\n',
+                    b't' => '\t',
+                    other => other as char, // covers \" and \\
+                });
+                i += 2;
+            }
+            b'"' => {
+                i += 1;
+                break;
+            }
+            other => {
+                content.push(other as char);
+                i += 1;
+            }
+        }
+    }
+    Ok((Tok { kind: Kind::Str(content), start, end: i }, i))
+}
+
 fn tokenize(text: &str) -> Result<Vec<Tok>, String> {
     let b = text.as_bytes();
     let mut i = 0;
     let mut out = Vec::new();
     while i < b.len() {
         let c = b[i];
-        if c == b' ' || c == b'\t' || c == b'\r' || c == b'\n' {
+        if matches!(c, b' ' | b'\t' | b'\r' | b'\n') {
             i += 1;
-            continue;
-        }
-        // // line comment
-        if c == b'/' && i + 1 < b.len() && b[i + 1] == b'/' {
-            while i < b.len() && b[i] != b'\n' {
-                i += 1;
-            }
-            continue;
-        }
-        if c == b'{' {
+        } else if c == b'/' && b.get(i + 1) == Some(&b'/') {
+            i = skip_line_comment(b, i);
+        } else if c == b'{' {
             out.push(Tok { kind: Kind::Open, start: i, end: i + 1 });
             i += 1;
-            continue;
-        }
-        if c == b'}' {
+        } else if c == b'}' {
             out.push(Tok { kind: Kind::Close, start: i, end: i + 1 });
             i += 1;
-            continue;
+        } else if c == b'"' {
+            let (tok, next) = lex_string(b, i)?;
+            out.push(tok);
+            i = next;
+        } else {
+            // unquoted token (Steam quotes everything in these files; bail to be safe)
+            return Err(format!("unexpected unquoted byte 0x{c:02x} at offset {i}"));
         }
-        if c == b'"' {
-            let start = i;
-            i += 1;
-            let mut content = String::new();
-            loop {
-                if i >= b.len() {
-                    return Err("unterminated quoted string".into());
-                }
-                match b[i] {
-                    b'\\' if i + 1 < b.len() => {
-                        // VDF escapes: \\ \" \n \t - keep it simple, decode the common ones
-                        let next = b[i + 1];
-                        content.push(match next {
-                            b'n' => '\n',
-                            b't' => '\t',
-                            other => other as char, // covers \" and \\
-                        });
-                        i += 2;
-                    }
-                    b'"' => {
-                        i += 1;
-                        break;
-                    }
-                    other => {
-                        content.push(other as char);
-                        i += 1;
-                    }
-                }
-            }
-            out.push(Tok { kind: Kind::Str(content), start, end: i });
-            continue;
-        }
-        // unquoted token (Steam quotes everything in these files; bail to be safe)
-        return Err(format!("unexpected unquoted byte 0x{c:02x} at offset {i}"));
     }
     Ok(out)
 }

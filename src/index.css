@@ -104,7 +104,7 @@ body {
   user-select: none;
 }
 .tb-dots { display: flex; gap: 8px; align-items: center; }
-.tb-dot { width: 12px; height: 12px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; opacity: 0.92; }
+.tb-dot { width: 12px; height: 12px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; opacity: 0.92; transition: filter 0.12s; }
 .tb-dot.c { background: #f15c4d; }
 .tb-dot.m { background: #f7b733; }
 .tb-dot.x { background: #43c463; }
@@ -129,7 +129,6 @@ body {
 .wc:hover { background: var(--bg-3); color: var(--tx-hi); }
 .wc-close:hover { background: var(--danger); color: #fff; }
 /* the mac dots are interactive now */
-.tb-dot { transition: filter 0.12s; }
 .tb-dot:hover { filter: brightness(1.15); }
 .tb-spacer { flex: 1; }
 
@@ -401,6 +400,10 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
 .foot-path { color: var(--tx-faint); font-family: var(--mono); font-size: 10.5px; white-space: nowrap; }
 
 /* ---------- sheet / overlay ---------- */
+/* native <dialog> wrapper: contributes the dialog role/semantics without its own
+   box, so the inner .scrim + .sheet/.builder keep their exact layout. */
+dialog.modal-host { display: contents; }
+
 .scrim {
   position: absolute; inset: 0; z-index: 40;
   background: oklch(0.10 0.006 274 / 0.62);
@@ -563,7 +566,7 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
 
 /* form fields */
 .field { margin-bottom: 14px; }
-.field label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tx-lo); margin-bottom: 6px; }
+.field label, .field .field-cap { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tx-lo); margin-bottom: 6px; }
 .field input, .field textarea, .field select {
   width: 100%; background: var(--bg-inset); border: 1px solid var(--line);
   border-radius: var(--r); color: var(--tx-hi); padding: 8px 10px; font-size: 12.5px; font-family: var(--sans);
@@ -697,7 +700,8 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
 }
 .pill.dragging { opacity: 0.4; }
 .pill.drop-target::before { content: ''; position: absolute; left: -5px; top: 2px; bottom: 2px; width: 2px; border-radius: 2px; background: var(--acc); }
-.pill .pgrip { display: flex; align-items: center; padding: 0 1px 0 5px; color: var(--tx-faint); cursor: grab; opacity: 0; }
+.pill .pgrip { display: flex; align-items: center; padding: 0 1px 0 5px; color: var(--tx-faint); cursor: grab; opacity: 0; background: none; border: 0; font: inherit; }
+.pill .pgrip:focus-visible { opacity: 1; outline: 1px solid var(--acc); outline-offset: -1px; }
 .pill:hover .pgrip { opacity: 1; }
 .pill .pbody { display: inline-flex; align-items: center; gap: 5px; padding: 0 8px 0 6px; height: 100%; overflow: hidden; }
 .pill .pbody.clickable { cursor: pointer; }
@@ -706,7 +710,7 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
 .pill .peq { color: var(--tx-faint); }
 .pill .pval { color: var(--acc-text); font-weight: 500; }
 .pill .pchev { color: var(--tx-faint); margin-left: 1px; }
-.pill .px { display: grid; place-items: center; width: 19px; height: 100%; color: var(--tx-faint); cursor: pointer; border-left: 1px solid transparent; }
+.pill .px { display: grid; place-items: center; width: 19px; height: 100%; color: var(--tx-faint); cursor: pointer; border: 0; border-left: 1px solid transparent; background: none; font: inherit; padding: 0; }
 .pill:hover .px { border-left-color: var(--line); }
 .pill .px:hover { color: var(--danger); background: var(--danger-dim); }
 .pill .ptag { font-size: 8.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tx-faint); background: var(--bg-inset); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; margin-left: 2px; }
@@ -723,10 +727,9 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
   height: 28px; padding-right: 0;
 }
 .pill.is-wrapper .pbody { padding-left: 9px; white-space: nowrap; min-width: 0; }
-.pill.is-wrapper .pw-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill.is-wrapper .pw-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tx-lo); font-size: 10.5px; }
 .pill.is-wrapper .pw-ico { color: var(--acc); display: inline-flex; }
 .pill.is-wrapper .pkey { color: var(--acc-text); font-family: var(--sans); font-weight: 600; font-size: 12px; }
-.pill.is-wrapper .pw-summary { color: var(--tx-lo); font-size: 10.5px; }
 .pill.is-wrapper .pcmd { font-family: var(--mono); font-size: 10.5px; color: var(--acc-text); background: oklch(0.735 0.150 304 / 0.18); border-radius: 3px; padding: 2px 5px; margin-left: 2px; }
 .pill.is-wrapper .pw-lock { color: var(--acc); opacity: 0.5; padding: 0 7px 0 3px; display: inline-flex; }
 

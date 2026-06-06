@@ -15,7 +15,7 @@
 use crate::vdfedit;
 use keyvalues_parser::{parse, Value, Vdf};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -163,21 +163,19 @@ fn find_localconfig(root: &Path) -> Option<(String, PathBuf)> {
 fn library_paths(root: &Path) -> Vec<PathBuf> {
     let mut paths = vec![root.to_path_buf()];
     let lf = root.join("steamapps/libraryfolders.vdf");
-    if let Ok(text) = fs::read_to_string(&lf) {
-        if let Ok(p) = parse(&text) {
-            let vdf = Vdf::from(p);
-            if let Some(obj) = vdf.value.get_obj() {
-                for (_idx, vals) in obj.iter() {
-                    if let Some(folder) = vals.first() {
-                        if let Some(path) = child(folder, "path").and_then(|v| v.get_str()) {
-                            let pb = PathBuf::from(path);
-                            if !paths.contains(&pb) {
-                                paths.push(pb);
-                            }
-                        }
-                    }
-                }
-            }
+    let Ok(text) = fs::read_to_string(&lf) else { return paths };
+    let Ok(parsed) = parse(&text) else { return paths };
+    let vdf = Vdf::from(parsed);
+    let Some(obj) = vdf.value.get_obj() else { return paths };
+    for (_idx, vals) in obj.iter() {
+        let path = vals
+            .first()
+            .and_then(|folder| child(folder, "path"))
+            .and_then(|v| v.get_str());
+        let Some(path) = path else { continue };
+        let pb = PathBuf::from(path);
+        if !paths.contains(&pb) {
+            paths.push(pb);
         }
     }
     paths
@@ -242,96 +240,88 @@ fn scan_compat_mapping(config_vdf: &Path) -> BTreeMap<String, String> {
     let Ok(text) = fs::read_to_string(config_vdf) else { return out };
     let Ok(p) = parse(&text) else { return out };
     let vdf = Vdf::from(p);
-    if let Some(map) = nav(
-        &vdf.value,
-        &["Software", "Valve", "Steam", "CompatToolMapping"],
-    ) {
-        if let Some(obj) = map.get_obj() {
-            for (appid, vals) in obj.iter() {
-                if let Some(entry) = vals.first() {
-                    if let Some(name) = child(entry, "name").and_then(|v| v.get_str()) {
-                        if !name.is_empty() {
-                            out.insert(appid.to_string(), name.to_string());
-                        }
-                    }
-                }
-            }
+    let map = nav(&vdf.value, &["Software", "Valve", "Steam", "CompatToolMapping"]).and_then(|m| m.get_obj());
+    let Some(obj) = map else { return out };
+    for (appid, vals) in obj.iter() {
+        let name = vals
+            .first()
+            .and_then(|entry| child(entry, "name"))
+            .and_then(|v| v.get_str());
+        let Some(name) = name else { continue };
+        if !name.is_empty() {
+            out.insert(appid.to_string(), name.to_string());
         }
     }
     out
 }
 
-/// Discover compat tools the user could pick: Default + custom (compatibilitytools.d)
-/// + official Proton builds found in steamapps/common.
-fn discover_compat_tools(root: &Path, libs: &[PathBuf]) -> Vec<CompatToolDto> {
-    let mut tools: Vec<CompatToolDto> = vec![CompatToolDto {
-        id: "default".into(),
-        name: "Default".into(),
-        note: "No forced tool - Steam decides".into(),
-    }];
-    let mut seen: Vec<String> = vec!["default".into()];
-
-    // custom tools: <dir>/<tool>/compatibilitytool.vdf
+/// Custom compat tools from every compatibilitytools.d directory.
+fn custom_compat_tools(root: &Path) -> Vec<CompatToolDto> {
     let tool_dirs = [
         root.join("compatibilitytools.d"),
         home().join(".local/share/Steam/compatibilitytools.d"),
         home().join(".steam/root/compatibilitytools.d"),
         PathBuf::from("/usr/share/steam/compatibilitytools.d"),
     ];
+    let mut out = Vec::new();
     for dir in tool_dirs {
         let Ok(rd) = fs::read_dir(&dir) else { continue };
         for entry in rd.flatten() {
-            let vdf_path = entry.path().join("compatibilitytool.vdf");
-            let Ok(text) = fs::read_to_string(&vdf_path) else { continue };
+            let Ok(text) = fs::read_to_string(entry.path().join("compatibilitytool.vdf")) else { continue };
             let Ok(p) = parse(&text) else { continue };
             let vdf = Vdf::from(p);
-            if let Some(ct) = child(&vdf.value, "compat_tools") {
-                if let Some(obj) = ct.get_obj() {
-                    for (internal, vals) in obj.iter() {
-                        let id = internal.to_string();
-                        if seen.iter().any(|s| s == &id) {
-                            continue;
-                        }
-                        let display = vals
-                            .first()
-                            .and_then(|v| child(v, "display_name"))
-                            .and_then(|v| v.get_str())
-                            .unwrap_or(&id)
-                            .to_string();
-                        seen.push(id.clone());
-                        tools.push(CompatToolDto {
-                            id,
-                            name: display,
-                            note: "Custom compatibility tool".into(),
-                        });
-                    }
-                }
+            let Some(obj) = child(&vdf.value, "compat_tools").and_then(|ct| ct.get_obj()) else { continue };
+            for (internal, vals) in obj.iter() {
+                let id = internal.to_string();
+                let display = vals
+                    .first()
+                    .and_then(|v| child(v, "display_name"))
+                    .and_then(|v| v.get_str())
+                    .unwrap_or(&id)
+                    .to_string();
+                out.push(CompatToolDto { id, name: display, note: "Custom compatibility tool".into() });
             }
         }
     }
+    out
+}
 
-    // official Proton builds in steamapps/common
+/// Official Proton builds found in any library's steamapps/common.
+fn official_proton_tools(libs: &[PathBuf]) -> Vec<CompatToolDto> {
+    let mut out = Vec::new();
     for lib in libs {
-        let common = lib.join("steamapps/common");
-        let Ok(rd) = fs::read_dir(&common) else { continue };
+        let Ok(rd) = fs::read_dir(lib.join("steamapps/common")) else { continue };
         for entry in rd.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if !name.starts_with("Proton") || !entry.path().is_dir() {
                 continue;
             }
-            let id = official_proton_internal_name(&name);
-            if seen.iter().any(|s| s == &id) {
-                continue;
-            }
-            seen.push(id.clone());
-            tools.push(CompatToolDto {
-                id,
-                name: name.clone(),
+            out.push(CompatToolDto {
+                id: official_proton_internal_name(&name),
+                name,
                 note: "Official Proton build".into(),
             });
         }
     }
+    out
+}
 
+/// Discover compat tools the user could pick: Default + custom (compatibilitytools.d)
+/// + official Proton builds found in steamapps/common. Deduplicated by internal id.
+fn discover_compat_tools(root: &Path, libs: &[PathBuf]) -> Vec<CompatToolDto> {
+    let mut tools = vec![CompatToolDto {
+        id: "default".into(),
+        name: "Default".into(),
+        note: "No forced tool - Steam decides".into(),
+    }];
+    let mut seen: Vec<String> = vec!["default".into()];
+    for tool in custom_compat_tools(root).into_iter().chain(official_proton_tools(libs)) {
+        if seen.iter().any(|s| s == &tool.id) {
+            continue;
+        }
+        seen.push(tool.id.clone());
+        tools.push(tool);
+    }
     tools
 }
 
@@ -353,7 +343,63 @@ fn official_proton_internal_name(folder: &str) -> String {
     lower.replace([' ', '-', '(', ')'], "_")
 }
 
+// Test seam: lets tests force the Steam-running state deterministically (the real
+// check reads /proc, which differs between dev machines and CI). Compiled out of
+// release builds. Thread-local so parallel tests don't interfere.
+#[cfg(test)]
+thread_local! {
+    static TEST_RUNNING: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(test)]
+pub(crate) fn set_test_running(v: Option<bool>) {
+    TEST_RUNNING.with(|c| c.set(v));
+}
+
+/// Build a minimal fake Steam tree under `home` (test-only, shared with lib tests).
+#[cfg(test)]
+pub(crate) fn build_test_tree(home: &Path) -> PathBuf {
+    let root = home.join(".steam/steam");
+    fs::create_dir_all(root.join("config")).unwrap();
+    fs::create_dir_all(root.join("steamapps/common/Proton 9.0 (Beta)")).unwrap();
+    fs::create_dir_all(root.join("compatibilitytools.d/mytool")).unwrap();
+    fs::create_dir_all(root.join("userdata/123/config")).unwrap();
+
+    fs::write(
+        root.join("config/config.vdf"),
+        "\"InstallConfigStore\"\n{\n\t\"Software\"\n\t{\n\t\t\"Valve\"\n\t\t{\n\t\t\t\"Steam\"\n\t\t\t{\n\t\t\t\t\"CompatToolMapping\"\n\t\t\t\t{\n\t\t\t\t\t\"111\"\n\t\t\t\t\t{\n\t\t\t\t\t\t\"name\"\t\t\"proton_experimental\"\n\t\t\t\t\t\t\"config\"\t\t\"\"\n\t\t\t\t\t\t\"priority\"\t\t\"250\"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("steamapps/libraryfolders.vdf"),
+        format!(
+            "\"libraryfolders\"\n{{\n\t\"0\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n}}\n",
+            root.to_string_lossy()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        root.join("steamapps/appmanifest_111.acf"),
+        "\"AppState\"\n{\n\t\"appid\"\t\t\"111\"\n\t\"name\"\t\t\"Game One\"\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("compatibilitytools.d/mytool/compatibilitytool.vdf"),
+        "\"compatibilitytools\"\n{\n\t\"compat_tools\"\n\t{\n\t\t\"my_custom_proton\"\n\t\t{\n\t\t\t\"display_name\"\t\t\"My Custom Proton\"\n\t\t}\n\t}\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("userdata/123/config/localconfig.vdf"),
+        "\"UserLocalConfigStore\"\n{\n\t\"Software\"\n\t{\n\t\t\"Valve\"\n\t\t{\n\t\t\t\"Steam\"\n\t\t\t{\n\t\t\t\t\"apps\"\n\t\t\t\t{\n\t\t\t\t\t\"111\"\n\t\t\t\t\t{\n\t\t\t\t\t\t\"LaunchOptions\"\t\t\"mangohud %command%\"\n\t\t\t\t\t}\n\t\t\t\t\t\"222\"\n\t\t\t\t\t{\n\t\t\t\t\t\t\"LaunchOptions\"\t\t\"gamescope %command%\"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n",
+    )
+    .unwrap();
+    root
+}
+
 fn steam_running() -> bool {
+    #[cfg(test)]
+    if let Some(v) = TEST_RUNNING.with(|c| c.get()) {
+        return v;
+    }
     let Ok(rd) = fs::read_dir("/proc") else { return false };
     for entry in rd.flatten() {
         let comm = entry.path().join("comm");
@@ -381,6 +427,42 @@ fn is_noise_app(appid: &str, name: &str) -> bool {
 // ----------------------------------------------------------------------------
 // Public command
 // ----------------------------------------------------------------------------
+
+/// Build one game row. Returns None for entries we skip (appid 0, non-Steam
+/// shortcuts >= 2^31, or runtime/redistributable "noise" apps).
+fn build_game(
+    appid: &str,
+    installed: &BTreeMap<String, Installed>,
+    launch: &BTreeMap<String, String>,
+    compat: &BTreeMap<String, String>,
+    resolved: &HashMap<u32, String>,
+) -> Option<GameDto> {
+    match appid.parse::<u64>() {
+        Ok(n) if n == 0 || n >= 2_147_483_648 => return None,
+        Err(_) => return None,
+        _ => {}
+    }
+    let inst = installed.get(appid);
+    let name = match inst {
+        Some(i) => i.name.clone(),
+        None => appid
+            .parse::<u32>()
+            .ok()
+            .and_then(|n| resolved.get(&n).cloned())
+            .unwrap_or_else(|| format!("App {appid}")),
+    };
+    if is_noise_app(appid, &name) {
+        return None;
+    }
+    Some(GameDto {
+        id: format!("app{appid}"),
+        appid: appid.to_string(),
+        name,
+        status: if inst.is_some() { "installed" } else { "owned" }.into(),
+        compat: compat.get(appid).cloned().unwrap_or_else(|| "default".into()),
+        launch: launch.get(appid).cloned().unwrap_or_default(),
+    })
+}
 
 pub fn scan() -> Result<LibraryDto, String> {
     let root = steam_root().ok_or("Steam installation not found")?;
@@ -420,39 +502,10 @@ pub fn scan() -> Result<LibraryDto, String> {
         .collect();
     let resolved = crate::appinfo::resolve_names(&uninstalled);
 
-    let mut games: Vec<GameDto> = Vec::new();
-    for appid in appids {
-        // Skip appid "0" (the global-default compat bucket) and non-Steam shortcuts
-        // (high-bit 32-bit IDs >= 2^31 - out of scope; they live in shortcuts.vdf).
-        match appid.parse::<u64>() {
-            Ok(n) if n == 0 || n >= 2_147_483_648 => continue,
-            Err(_) => continue,
-            _ => {}
-        }
-        let inst = installed.get(&appid);
-        let name = match inst {
-            Some(i) => i.name.clone(),
-            None => appid
-                .parse::<u32>()
-                .ok()
-                .and_then(|n| resolved.get(&n).cloned())
-                .unwrap_or_else(|| format!("App {appid}")),
-        };
-        if is_noise_app(&appid, &name) {
-            continue;
-        }
-        let status = if inst.is_some() { "installed" } else { "owned" };
-        let compat_name = compat.get(&appid).cloned().unwrap_or_else(|| "default".into());
-        let launch_opts = launch.get(&appid).cloned().unwrap_or_default();
-        games.push(GameDto {
-            id: format!("app{appid}"),
-            appid: appid.clone(),
-            name,
-            status: status.into(),
-            compat: compat_name,
-            launch: launch_opts,
-        });
-    }
+    let mut games: Vec<GameDto> = appids
+        .iter()
+        .filter_map(|appid| build_game(appid, &installed, &launch, &compat, &resolved))
+        .collect();
 
     // Ensure every compat name actually in use is offered in the picker / resolvable.
     let mut tools = compat_tools;
@@ -680,6 +733,223 @@ mod tests {
         assert!(!leftover, "temp file should be renamed away");
         fs::remove_dir_all(&dir).ok();
     }
+
+    // ---- pure parser / helper tests (no env, safe in parallel) ----------------
+
+    #[test]
+    fn official_proton_names_map_sensibly() {
+        assert_eq!(official_proton_internal_name("Proton - Experimental"), "proton_experimental");
+        assert_eq!(official_proton_internal_name("Proton 9.0 (Beta)"), "proton_9");
+        assert_eq!(official_proton_internal_name("Proton 8.0"), "proton_8");
+        // unrecognized shapes are slugified
+        assert_eq!(official_proton_internal_name("GE-Proton9-20"), "ge_proton9_20");
+    }
+
+    #[test]
+    fn noise_apps_are_filtered() {
+        assert!(is_noise_app("228980", "Steamworks Common Redistributables"));
+        assert!(is_noise_app("1", "Proton 9.0"));
+        assert!(is_noise_app("2", "Steam Linux Runtime 3.0"));
+        assert!(is_noise_app("3", "SteamVR"));
+        assert!(!is_noise_app("1245620", "Elden Ring"));
+    }
+
+    #[test]
+    fn root_validity_and_read_path() {
+        let dir = std::env::temp_dir().join(format!("manifold_rv_{}", unique()));
+        fs::create_dir_all(dir.join("steamapps")).unwrap();
+        assert!(root_is_valid(&dir));
+        assert!(!root_is_valid(&dir.join("nope")));
+        // read_path_string navigates from the root object's value (top key stripped)
+        let cfg = "\"a\"\n{\n  \"b\"\n  {\n    \"c\"  \"hi\"\n  }\n}\n";
+        assert_eq!(read_path_string(cfg, &["b", "c"]).as_deref(), Some("hi"));
+        assert_eq!(read_path_string(cfg, &["missing"]), None);
+        assert_eq!(read_path_string("not valid vdf {{{", &["a"]), None);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn parses_installed_launch_and_compat_from_fixtures() {
+        let dir = std::env::temp_dir().join(format!("manifold_fx_{}", unique()));
+        let root = build_test_tree(&dir);
+        let libs = library_paths(&root);
+        assert!(libs.contains(&root));
+
+        let installed = scan_installed(&libs);
+        assert_eq!(installed.get("111").map(|i| i.name.as_str()), Some("Game One"));
+
+        let (uid, lc) = find_localconfig(&root).unwrap();
+        assert_eq!(uid, "123");
+        let launch = scan_launch_options(&lc);
+        assert_eq!(launch.get("111").map(|s| s.as_str()), Some("mangohud %command%"));
+        assert_eq!(launch.get("222").map(|s| s.as_str()), Some("gamescope %command%"));
+
+        let compat = scan_compat_mapping(&root.join("config/config.vdf"));
+        assert_eq!(compat.get("111").map(|s| s.as_str()), Some("proton_experimental"));
+
+        let tools = discover_compat_tools(&root, &libs);
+        let ids: Vec<&str> = tools.iter().map(|t| t.id.as_str()).collect();
+        assert!(ids.contains(&"default"));
+        assert!(ids.contains(&"my_custom_proton"));
+        assert!(ids.contains(&"proton_9"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    // ---- env-isolated integration tests (serialized) --------------------------
+
+    #[test]
+    fn scan_reads_a_fake_install() {
+        let env = TestEnv::new();
+        build_test_tree(env.home());
+        set_test_running(Some(false));
+        let lib = scan().expect("scan");
+        assert!(!lib.steam_running);
+        let one = lib.games.iter().find(|g| g.appid == "111").unwrap();
+        assert_eq!(one.name, "Game One");
+        assert_eq!(one.status, "installed");
+        assert_eq!(one.compat, "proton_experimental");
+        assert_eq!(one.launch, "mangohud %command%");
+        // 222 has launch options but no manifest -> owned-only, name unresolved
+        let two = lib.games.iter().find(|g| g.appid == "222").unwrap();
+        assert_eq!(two.status, "owned");
+        assert!(lib.compat_tools.iter().any(|t| t.id == "my_custom_proton"));
+    }
+
+    #[test]
+    fn write_launch_options_edits_and_backs_up() {
+        let env = TestEnv::new();
+        let root = build_test_tree(env.home());
+        set_test_running(Some(false));
+        let lc = root.join("userdata/123/config/localconfig.vdf");
+
+        // empty changes is a no-op that still returns a scan
+        assert!(write_launch_options(vec![]).is_ok());
+
+        write_launch_options(vec![("111".into(), "MANIFOLD_TEST=1 game %command%".into())]).unwrap();
+        let after = fs::read_to_string(&lc).unwrap();
+        assert!(after.contains("MANIFOLD_TEST=1 game %command%"));
+        // a timestamped backup was written under the (temp) home
+        let bdir = env.home().join(".local/share/manifold/backups");
+        let n = fs::read_dir(&bdir).map(|r| r.count()).unwrap_or(0);
+        assert!(n >= 1, "expected a backup file");
+    }
+
+    #[test]
+    fn write_compat_tool_sets_and_clears() {
+        let env = TestEnv::new();
+        let root = build_test_tree(env.home());
+        set_test_running(Some(false));
+        let cfg = root.join("config/config.vdf");
+
+        write_compat_tool(vec![
+            ("222".into(), "proton_9".into()),
+            ("111".into(), "default".into()),
+        ])
+        .unwrap();
+        let text = fs::read_to_string(&cfg).unwrap();
+        assert_eq!(
+            read_path_string(&text, &["Software", "Valve", "Steam", "CompatToolMapping", "222", "name"]).as_deref(),
+            Some("proton_9"),
+        );
+        // 111 mapping was removed
+        assert_eq!(
+            read_path_string(&text, &["Software", "Valve", "Steam", "CompatToolMapping", "111", "name"]),
+            None,
+        );
+    }
+
+    #[test]
+    fn writes_are_refused_while_steam_runs() {
+        let env = TestEnv::new();
+        let root = build_test_tree(env.home());
+        let lc = root.join("userdata/123/config/localconfig.vdf");
+        let before = fs::read_to_string(&lc).unwrap();
+        set_test_running(Some(true));
+        let res = write_launch_options(vec![("111".into(), "X=1 game %command%".into())]);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Steam is running"));
+        assert_eq!(fs::read_to_string(&lc).unwrap(), before, "file must be untouched");
+    }
+
+    #[test]
+    fn discover_roots_finds_the_fake_install() {
+        let env = TestEnv::new();
+        build_test_tree(env.home());
+        let roots = discover_roots();
+        assert!(roots.iter().any(|r| r.path.ends_with(".steam/steam") && r.valid));
+    }
+
+    #[test]
+    fn operations_error_without_an_install() {
+        let _env = TestEnv::new(); // empty temp HOME, no Steam tree
+        set_test_running(Some(false));
+        assert!(scan().is_err());
+        assert!(write_launch_options(vec![("1".into(), "x %command%".into())]).is_err());
+        assert!(write_compat_tool(vec![("1".into(), "proton_9".into())]).is_err());
+        assert!(discover_roots().is_empty());
+    }
+
+    #[test]
+    fn steam_process_control_early_returns() {
+        let env = TestEnv::new();
+        build_test_tree(env.home());
+        // not running -> close is a no-op scan (no process spawned)
+        set_test_running(Some(false));
+        assert!(close_steam().is_ok());
+        // running -> start is a no-op scan (no process spawned)
+        set_test_running(Some(true));
+        assert!(start_steam().is_ok());
+    }
+
+    // ---- test infrastructure --------------------------------------------------
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use crate::TEST_ENV_LOCK as ENV_LOCK;
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn unique() -> String {
+        format!("{}_{}", std::process::id(), COUNTER.fetch_add(1, Ordering::SeqCst))
+    }
+
+    /// Serializes env mutation across tests and points HOME / XDG_CONFIG_HOME at a temp dir,
+    /// so scan/write paths and backups stay fully isolated. Restores on drop.
+    struct TestEnv {
+        _guard: std::sync::MutexGuard<'static, ()>,
+        home_prev: Option<String>,
+        xdg_prev: Option<String>,
+        dir: PathBuf,
+    }
+    impl TestEnv {
+        fn new() -> Self {
+            let guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let dir = std::env::temp_dir().join(format!("manifold_env_{}", unique()));
+            fs::create_dir_all(&dir).unwrap();
+            let home_prev = std::env::var("HOME").ok();
+            let xdg_prev = std::env::var("XDG_CONFIG_HOME").ok();
+            std::env::set_var("HOME", &dir);
+            std::env::set_var("XDG_CONFIG_HOME", dir.join(".config"));
+            TestEnv { _guard: guard, home_prev, xdg_prev, dir }
+        }
+        fn home(&self) -> &Path {
+            &self.dir
+        }
+    }
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            set_test_running(None);
+            match &self.home_prev {
+                Some(h) => std::env::set_var("HOME", h),
+                None => std::env::remove_var("HOME"),
+            }
+            match &self.xdg_prev {
+                Some(x) => std::env::set_var("XDG_CONFIG_HOME", x),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+            fs::remove_dir_all(&self.dir).ok();
+        }
+    }
+
 
     /// With Steam running, a write must be refused AND leave the file byte-for-byte intact.
     #[test]

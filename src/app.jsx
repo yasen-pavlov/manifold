@@ -8,8 +8,13 @@ import { BuilderSurface, PresetsList } from "./builder.jsx";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table.jsx";
 import { CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces.jsx";
 
-const OS = (typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '')) ? 'mac'
-  : (typeof navigator !== 'undefined' && /win/i.test(navigator.platform || '')) ? 'windows' : 'linux';
+function detectOS() {
+  const p = typeof navigator !== 'undefined' ? (navigator.platform || '') : '';
+  if (/mac/i.test(p)) return 'mac';
+  if (/win/i.test(p)) return 'windows';
+  return 'linux';
+}
+const OS = detectOS();
 function resolveControlsSide(pref) {
   if (pref === 'hidden') return 'none';
   if (pref === 'left' || pref === 'right') return pref;
@@ -23,7 +28,7 @@ const clampScale = (v) => Math.min(2, Math.max(0.6, Math.round((Number(v) || 1) 
 // pixels when available).
 function applyZoom(target) {
   try {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = globalThis.devicePixelRatio || 1;
     document.documentElement.style.zoom = String(clampScale(target) / dpr);
   } catch { /* no-op */ }
 }
@@ -31,11 +36,14 @@ import { BackupsView, CommandPalette } from "./presets.jsx";
 
 let _tid = 0;
 
+// Best-effort debug log for expected fallbacks (e.g. running outside Tauri); silent in prod.
+const logDev = (...args) => { if (import.meta.env?.DEV) console.debug(...args); };
+
 function App() {
   const [games, setGames] = aS([]);
   const [presets, setPresets] = aS([]);
-  const [loading, setLoading] = aS(true);
-  const [scanError, setScanError] = aS(null);
+  const [, setLoading] = aS(true);
+  const [, setScanError] = aS(null);
 
   const [selected, setSelected] = aS(() => new Set());
   const [search, setSearch] = aS('');
@@ -47,12 +55,12 @@ function App() {
   const [bannerDismissed, setBannerDismissed] = aS(false);
   const [empty, setEmpty] = aS(false);
 
-  const [builder, setBuilder] = aS(null);             // builder context | null
-  const [compatPop, setCompatPop] = aS(null);         // {anchor, targets}
-  const [rowMenu, setRowMenu] = aS(null);             // {anchor, game}
+  const [builder, setBuilder] = aS(null);             // open builder context (apply or preset), else null
+  const [compatPop, setCompatPop] = aS(null);         // compat popover: anchor rect + target games, else null
+  const [rowMenu, setRowMenu] = aS(null);             // row menu: anchor rect + the row game, else null
   const [cmdk, setCmdk] = aS(false);
   const [toasts, setToasts] = aS([]);
-  const [steamPrompt, setSteamPrompt] = aS(null); // { count, run(mode) } | null
+  const [steamPrompt, setSteamPrompt] = aS(null);     // pending close-Steam confirm: count + run callback, else null
   const [steamBusy, setSteamBusy] = aS(false);
   const [settings, setSettings] = aS({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 0 });
   const [settingsOpen, setSettingsOpen] = aS(false);
@@ -63,12 +71,13 @@ function App() {
   const effectiveScale = (s) => (s && s.ui_scale > 0 ? s.ui_scale : systemScale);
 
   /* ---------- toasts ---------- */
+  const removeToast = aC((id) => setToasts((ts) => ts.filter((x) => x.id !== id)), []);
   const toast = aC((t) => {
     const id = ++_tid;
     setToasts((ts) => [...ts, { ...t, id }]);
-    setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), t.sticky ? 99999 : 4800);
-  }, []);
-  const dismissToast = (id) => setToasts((ts) => ts.filter((x) => x.id !== id));
+    setTimeout(() => removeToast(id), t.sticky ? 99999 : 4800);
+  }, [removeToast]);
+  const dismissToast = removeToast;
 
   /* ---------- derived ---------- */
   const counts = aM(() => ({
@@ -90,7 +99,10 @@ function App() {
     const cmp = {
       name: (a, b) => a.name.localeCompare(b.name),
       appid: (a, b) => Number(a.appid) - Number(b.appid),
-      status: (a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'installed' ? -1 : 1),
+      status: (a, b) => {
+        if (a.status === b.status) return a.name.localeCompare(b.name);
+        return a.status === 'installed' ? -1 : 1;
+      },
       compat: (a, b) => compatName(a.compat).localeCompare(compatName(b.compat)),
     }[sort.col] || (() => 0);
     return [...r].sort((a, b) => cmp(a, b) * dir);
@@ -99,7 +111,9 @@ function App() {
   const filteredIds = aM(() => rows.map((r) => r.id), [rows]);
   const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
   const someSelected = filteredIds.some((id) => selected.has(id));
-  const headState = allSelected ? true : someSelected ? 'dash' : false;
+  let headState = false;
+  if (allSelected) headState = true;
+  else if (someSelected) headState = 'dash';
 
   const targets = aM(() => games.filter((g) => selected.has(g.id)), [games, selected]);
 
@@ -138,7 +152,7 @@ function App() {
     setSteamRunning(!!lib.steam_running);
     if (lib.steam_root) setSteamRoot(lib.steam_root);
   };
-  const plural = (n) => `${n} game${n !== 1 ? 's' : ''}`;
+  const plural = (n) => `${n} game${n === 1 ? '' : 's'}`;
 
   /* ---------- Steam process control ---------- */
   const closeSteam = async () => {
@@ -274,25 +288,27 @@ function App() {
   };
 
   /* ---------- commands ---------- */
-  const centerAnchor = () => ({ left: window.innerWidth / 2 - 129, top: 130, bottom: 150 });
+  const centerAnchor = () => ({ left: globalThis.innerWidth / 2 - 129, top: 130, bottom: 150 });
   const commands = aM(() => {
     const sel = targets.length;
-    const c = [];
-    if (sel > 0) {
-      c.push({ id: 'c_launch', group: 'Selection', icon: 'terminal', name: `Set launch options on ${sel} game${sel !== 1 ? 's' : ''}…`, hint: '', run: () => openBuilderFor(targets) });
-      c.push({ id: 'c_compat', group: 'Selection', icon: 'cpu', name: `Set compatibility on ${sel} game${sel !== 1 ? 's' : ''}…`, run: () => setCompatPop({ anchor: centerAnchor(), targets }) });
-      c.push({ id: 'c_clear', group: 'Selection', icon: 'x', name: `Clear launch options on ${sel} game${sel !== 1 ? 's' : ''}`, run: () => clearLaunch(targets.map((t) => t.id)) });
-      c.push({ id: 'c_desel', group: 'Selection', icon: 'x', name: 'Deselect all', run: clearSel });
-    }
-    c.push({ id: 'c_selall', group: 'Selection', icon: 'check', name: 'Select all (filtered)', run: selectAll });
-    c.push({ id: 'g_lib', group: 'Go to', icon: 'layers', name: 'Library', run: () => setTab('library') });
-    c.push({ id: 'g_pre', group: 'Go to', icon: 'bookmark', name: 'Presets', run: () => setTab('presets') });
-    c.push({ id: 'g_bak', group: 'Go to', icon: 'history', name: 'Backups', run: () => setTab('backups') });
-    c.push({ id: 'n_pre', group: 'Create', icon: 'plus', name: 'New preset', run: () => { setTab('presets'); setBuilder({ mode: 'preset', preset: null, initialPills: [] }); } });
-    c.push({ id: 'steam_ctl', group: 'Steam', icon: 'power', name: steamRunning ? 'Close Steam' : 'Start Steam', run: () => (steamRunning ? closeSteam() : startSteam()) });
-    c.push({ id: 'l_rescan', group: 'Library', icon: 'refresh', name: 'Re-scan library', run: () => loadLibrary() });
-    c.push({ id: 'settings', group: 'Go to', icon: 'settings', name: 'Settings', run: () => setSettingsOpen(true) });
-    return c;
+    const plural = sel === 1 ? '' : 's';
+    const selectionCmds = sel > 0 ? [
+      { id: 'c_launch', group: 'Selection', icon: 'terminal', name: `Set launch options on ${sel} game${plural}…`, hint: '', run: () => openBuilderFor(targets) },
+      { id: 'c_compat', group: 'Selection', icon: 'cpu', name: `Set compatibility on ${sel} game${plural}…`, run: () => setCompatPop({ anchor: centerAnchor(), targets }) },
+      { id: 'c_clear', group: 'Selection', icon: 'x', name: `Clear launch options on ${sel} game${plural}`, run: () => clearLaunch(targets.map((t) => t.id)) },
+      { id: 'c_desel', group: 'Selection', icon: 'x', name: 'Deselect all', run: clearSel },
+    ] : [];
+    return [
+      ...selectionCmds,
+      { id: 'c_selall', group: 'Selection', icon: 'check', name: 'Select all (filtered)', run: selectAll },
+      { id: 'g_lib', group: 'Go to', icon: 'layers', name: 'Library', run: () => setTab('library') },
+      { id: 'g_pre', group: 'Go to', icon: 'bookmark', name: 'Presets', run: () => setTab('presets') },
+      { id: 'g_bak', group: 'Go to', icon: 'history', name: 'Backups', run: () => setTab('backups') },
+      { id: 'n_pre', group: 'Create', icon: 'plus', name: 'New preset', run: () => { setTab('presets'); setBuilder({ mode: 'preset', preset: null, initialPills: [] }); } },
+      { id: 'steam_ctl', group: 'Steam', icon: 'power', name: steamRunning ? 'Close Steam' : 'Start Steam', run: () => (steamRunning ? closeSteam() : startSteam()) },
+      { id: 'l_rescan', group: 'Library', icon: 'refresh', name: 'Re-scan library', run: () => loadLibrary() },
+      { id: 'settings', group: 'Go to', icon: 'settings', name: 'Settings', run: () => setSettingsOpen(true) },
+    ];
   }, [targets, steamRunning, empty, games, counts]);
 
   /* ---------- load real library from the Rust backend ---------- */
@@ -334,7 +350,8 @@ function App() {
         if (cancelled || !store) return;
         setPresets(Array.isArray(store.presets) ? store.presets : []);
       } catch (e) {
-        // not under Tauri (e.g. vite preview) - keep the in-memory seed defaults
+        // not under Tauri (e.g. vite preview) - keep the in-memory defaults
+        logDev('load_presets unavailable:', e);
       }
     })();
     return () => { cancelled = true; };
@@ -352,7 +369,7 @@ function App() {
           if (s) setSettings(s);
           // Desktop scale: explicit hint (Linux GDK) if any, else the webview's
           // devicePixelRatio (already reflects OS scale on Windows/macOS).
-          const os = sys > 0 ? sys : (window.devicePixelRatio || 1);
+          const os = sys > 0 ? sys : (globalThis.devicePixelRatio || 1);
           setSystemScale(os);
           applyZoom(s && s.ui_scale > 0 ? s.ui_scale : os);
         }
@@ -360,6 +377,7 @@ function App() {
         if (!cancelled && Array.isArray(roots)) setDiscoveredRoots(roots);
       } catch (e) {
         // not under Tauri - keep defaults
+        logDev('settings/roots unavailable:', e);
       }
     })();
     return () => { cancelled = true; };
@@ -408,8 +426,8 @@ function App() {
         if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') { e.preventDefault(); selectAll(); }
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    globalThis.addEventListener('keydown', onKey);
+    return () => globalThis.removeEventListener('keydown', onKey);
   }, [builder, compatPop, selected, tab, filteredIds]);
 
   const showBanner = steamRunning && !bannerDismissed;

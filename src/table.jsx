@@ -1,16 +1,23 @@
 // table.jsx - toolbar, games table, bulk bar, footer
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState } from "react";
 import { Icon } from "./icons.jsx";
 import { parseWrapper, HiLaunch, compatName, LIBRARY_PATH } from "./data.jsx";
 
 /* ---------------- Checkbox ---------------- */
 function Check({ state, onClick }) {
   // state: false | true | 'dash'
-  const cls = state === 'dash' ? 'cbx dash' : state ? 'cbx on' : 'cbx';
+  let cls = 'cbx';
+  let icon = null;
+  if (state === 'dash') {
+    cls = 'cbx dash';
+    icon = <Icon name="minus" size={11} stroke={3} />;
+  } else if (state) {
+    cls = 'cbx on';
+    icon = <Icon name="check" size={11} stroke={3} />;
+  }
   return (
     <button className={cls} onClick={(e) => { e.stopPropagation(); onClick(e); }}>
-      {state === 'dash' ? <Icon name="minus" size={11} stroke={3} />
-        : state ? <Icon name="check" size={11} stroke={3} /> : null}
+      {icon}
     </button>
   );
 }
@@ -75,17 +82,11 @@ function WrapTag({ launch }) {
   return <span className={'wrap-tag ' + w}>{labels[w]}</span>;
 }
 
-function LaunchCell({ value, onTip }) {
+function LaunchCell({ value }) {
   if (!value) return <span className="launch-empty">no launch options</span>;
   return (
     <div className="launch-cell">
-      <span
-        className="launch-str mono"
-        onMouseEnter={(e) => onTip(e, value)}
-        onMouseLeave={() => onTip(null)}
-      >
-        <HiLaunch value={value} />
-      </span>
+      <span className="launch-str mono"><HiLaunch value={value} /></span>
     </div>
   );
 }
@@ -112,8 +113,18 @@ function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchC
       </td>
       <td className="col-launch">
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: 0 }} onClick={(e) => { e.stopPropagation(); onLaunchClick(game); }}>
-            <LaunchCell value={game.launch} onTip={onTip} />
+          <div
+            className="launch-click"
+            style={{ flex: 1, minWidth: 0 }}
+            role="button"
+            tabIndex={0}
+            title={game.launch || undefined}
+            onClick={(e) => { e.stopPropagation(); onLaunchClick(game); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onLaunchClick(game); } }}
+            onMouseEnter={(e) => { if (game.launch) onTip(e, game.launch); }}
+            onMouseLeave={() => onTip(null)}
+          >
+            <LaunchCell value={game.launch} />
           </div>
           <button className="row-act" onClick={(e) => { e.stopPropagation(); onRowMenu(e, game); }}>
             <Icon name="more" size={15} />
@@ -217,8 +228,14 @@ function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, 
 
 /* ---------------- Footer ---------------- */
 function Footer({ total, installed, shown, selected, steamRunning, steamBusy, onCloseSteam, onStartSteam }) {
-  const onClick = steamBusy ? undefined : (steamRunning ? onCloseSteam : onStartSteam);
-  const title = steamBusy ? 'Working…' : (steamRunning ? 'Close Steam' : 'Start Steam');
+  const steamAction = steamRunning ? onCloseSteam : onStartSteam;
+  const onClick = steamBusy ? undefined : steamAction;
+  const steamLabel = steamRunning ? 'Close Steam' : 'Start Steam';
+  const title = steamBusy ? 'Working…' : steamLabel;
+  const runText = steamRunning ? 'running' : 'stopped';
+  const stateText = steamBusy ? 'working…' : runText;
+  const runHint = steamRunning ? '· close' : '· start';
+  const actionHint = steamBusy ? '' : runHint;
   return (
     <div className="footer">
       <div className="foot-item">
@@ -241,10 +258,17 @@ function Footer({ total, installed, shown, selected, steamRunning, steamBusy, on
       )}
       <div className="foot-spacer" />
       <div className="foot-item foot-path">{LIBRARY_PATH}</div>
-      <div className={'foot-item clickable foot-state ' + (steamRunning ? 'running' : 'stopped')} onClick={onClick} title={title}>
+      <div
+        className={'foot-item clickable foot-state ' + (steamRunning ? 'running' : 'stopped')}
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick(); } }}
+        title={title}
+      >
         <span className="dot" />
-        <span>Steam {steamBusy ? 'working…' : (steamRunning ? 'running' : 'stopped')}</span>
-        <span style={{ color: 'var(--tx-faint)', marginLeft: 4 }}>{steamBusy ? '' : (steamRunning ? '· close' : '· start')}</span>
+        <span>Steam {stateText}</span>
+        <span style={{ color: 'var(--tx-faint)', marginLeft: 4 }}>{actionHint}</span>
       </div>
     </div>
   );

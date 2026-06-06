@@ -157,4 +157,92 @@ mod tests {
 
         fs::remove_dir_all(&dir).ok();
     }
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static SC: AtomicU32 = AtomicU32::new(0);
+    fn uniq() -> String {
+        format!("{}_{}", std::process::id(), SC.fetch_add(1, Ordering::SeqCst))
+    }
+
+    /// Serializes + isolates env mutation for the listed keys; restores on drop.
+    struct Env {
+        _g: std::sync::MutexGuard<'static, ()>,
+        saved: Vec<(&'static str, Option<String>)>,
+    }
+    impl Env {
+        fn new(keys: &[&'static str]) -> Self {
+            let g = crate::TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let saved = keys.iter().map(|k| (*k, std::env::var(k).ok())).collect();
+            for k in keys {
+                std::env::remove_var(k);
+            }
+            Env { _g: g, saved }
+        }
+        fn set(&self, k: &str, v: impl AsRef<std::ffi::OsStr>) {
+            std::env::set_var(k, v);
+        }
+    }
+    impl Drop for Env {
+        fn drop(&mut self) {
+            for (k, v) in &self.saved {
+                match v {
+                    Some(x) => std::env::set_var(k, x),
+                    None => std::env::remove_var(k),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn system_scale_reads_desktop_hints() {
+        let e = Env::new(&["GDK_SCALE", "GDK_DPI_SCALE", "QT_SCALE_FACTOR"]);
+        // no hints -> 0.0 (let the frontend use devicePixelRatio)
+        assert_eq!(system_scale(), 0.0);
+        // GDK_SCALE alone
+        e.set("GDK_SCALE", "2");
+        assert_eq!(system_scale(), 2.0);
+        // GDK product ~1 falls back to QT_SCALE_FACTOR
+        e.set("GDK_SCALE", "1");
+        e.set("QT_SCALE_FACTOR", "1.5");
+        assert_eq!(system_scale(), 1.5);
+        // out-of-range is clamped
+        e.set("GDK_SCALE", "10");
+        assert_eq!(system_scale(), 3.0);
+        // garbage is ignored
+        e.set("GDK_SCALE", "not-a-number");
+        std::env::remove_var("QT_SCALE_FACTOR");
+        assert_eq!(system_scale(), 0.0);
+    }
+
+    #[test]
+    fn save_then_current_via_xdg() {
+        let e = Env::new(&["XDG_CONFIG_HOME", "HOME"]);
+        let dir = std::env::temp_dir().join(format!("manifold_cfg_{}", uniq()));
+        e.set("XDG_CONFIG_HOME", &dir);
+        save(Settings {
+            steam_root: "/x/steam".into(),
+            silent_start: false,
+            window_controls: "left".into(),
+            ui_scale: 1.5,
+        })
+        .unwrap();
+        assert!(dir.join("manifold/settings.json").exists());
+        let c = current();
+        assert_eq!(c.steam_root, "/x/steam");
+        assert!(!c.silent_start);
+        assert_eq!(c.window_controls, "left");
+        assert!(load().is_ok());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn config_dir_falls_back_to_home_and_defaults_when_absent() {
+        let e = Env::new(&["XDG_CONFIG_HOME", "HOME"]);
+        let dir = std::env::temp_dir().join(format!("manifold_home_{}", uniq()));
+        e.set("HOME", &dir); // no XDG_CONFIG_HOME -> uses HOME/.config
+        // nothing written yet -> defaults
+        assert_eq!(current().steam_root, "");
+        assert!(current().silent_start);
+        fs::remove_dir_all(&dir).ok();
+    }
 }

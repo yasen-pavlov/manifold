@@ -28,7 +28,7 @@ function BackupsView({ onRestore }) {
               <div className="card-icon opt"><Icon name="history" size={15} /></div>
               <div className="card-main">
                 <div className="card-name mono" style={{ fontSize: 12.5 }}>{b.when}</div>
-                <div className="card-desc">{b.note} · <span className="mono" style={{ color: 'var(--tx-mid)' }}>{b.games} game{b.games !== 1 ? 's' : ''}</span></div>
+                <div className="card-desc">{b.note} · <span className="mono" style={{ color: 'var(--tx-mid)' }}>{b.games} game{b.games === 1 ? '' : 's'}</span></div>
               </div>
               <button className="btn" onClick={() => onRestore(b)}><Icon name="rotate" size={14} />Restore</button>
             </div>
@@ -67,8 +67,15 @@ function CommandPalette({ commands, onClose }) {
   });
 
   return (
-    <div className="cmdk-scrim" onClick={onClose}>
-      <div className="cmdk" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="cmdk-scrim"
+      role="button"
+      tabIndex={-1}
+      aria-label="Close command palette"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      <div className="cmdk">
         <div className="cmdk-input">
           <Icon name="command" size={17} style={{ color: 'var(--tx-lo)' }} />
           <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} placeholder="Type a command or search…" spellCheck={false} />
@@ -81,8 +88,11 @@ function CommandPalette({ commands, onClose }) {
                 <div
                   key={c.id}
                   className={'cmdk-item' + (c._i === active ? ' active' : '')}
+                  role="button"
+                  tabIndex={0}
                   onMouseEnter={() => setActive(c._i)}
                   onClick={() => run(c)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(c); } }}
                 >
                   <span className="ci-ico"><Icon name={c.icon} size={15} /></span>
                   <span className="ci-name">{c.name}</span>

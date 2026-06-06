@@ -103,7 +103,7 @@ let _uid = 0;
 const nextUid = () => 'pill' + (++_uid);
 
 function makePill(item, overrides = {}) {
-  if (item && item.id && CAT_BY_ID[item.id]) item = { ...CAT_BY_ID[item.id], ...item };
+  if (item?.id && CAT_BY_ID[item.id]) item = { ...CAT_BY_ID[item.id], ...item };
   const base = { uid: nextUid(), itemId: item.id, kind: item.kind, cat: item.cat, name: item.name };
   if (item.kind === 'toggle' || item.kind === 'tool') return { ...base, token: item.token, ...overrides };
   if (item.kind === 'choice') return { ...base, key: item.key, value: item.default, choices: item.choices, ...overrides };
@@ -212,70 +212,76 @@ function validateLine(finalStr, pills) {
     }
   });
 
-  const level = issues.some((i) => i.level === 'error') ? 'error' : issues.some((i) => i.level === 'warn') ? 'warn' : 'ok';
+  let level = 'ok';
+  if (issues.some((i) => i.level === 'error')) level = 'error';
+  else if (issues.some((i) => i.level === 'warn')) level = 'warn';
   return { issues, flagged, level, cmdCount };
 }
 
 /* ============================================================
    PARSE - best-effort raw string -> pills (escape hatch)
    ============================================================ */
+// A gamescope span (`gamescope ... --`) -> a complex wrapper pill + the remaining
+// (pre-gamescope) head tokens, with the gamescope nested-env tokens stripped.
+function parseGamescopeSpan(before, gi) {
+  const dashIdx = before.indexOf('--', gi);
+  const flagToks = before.slice(gi + 1, dashIdx === -1 ? before.length : dashIdx);
+  const cfg = { ...GAMESCOPE_DEFAULT };
+  Object.keys(cfg).forEach((k) => { if (typeof cfg[k] === 'boolean') cfg[k] = false; });
+  for (let i = 0; i < flagToks.length; i++) {
+    const f = flagToks[i];
+    const flagDef = GAMESCOPE_SCHEMA.flags.find((x) => x.flag === f);
+    const togDef = GAMESCOPE_SCHEMA.toggles.find((x) => x.flag === f);
+    if (flagDef) { cfg[flagDef.key] = flagToks[i + 1] || ''; i++; }
+    else if (togDef) cfg[togDef.key] = true;
+  }
+  GAMESCOPE_SCHEMA.envs.forEach((e) => { if (before.includes(`${e.key}=1`)) cfg[e.key] = true; });
+  const head = before.slice(0, gi).filter((t) => !GAMESCOPE_SCHEMA.envs.some((e) => `${e.key}=1` === t));
+  return { wrapperPill: makePill(CAT_BY_ID.w_gamescope, { cfg }), head };
+}
+
+// The wrapper is the last bare (non-env) token before %command%. Unknown wrappers
+// become a raw wrapper pill carrying the literal head (flagged by validation later).
+function parseWrapperSpan(before) {
+  let wIdx = -1;
+  for (let i = before.length - 1; i >= 0; i--) {
+    if (!isEnvToken(before[i])) { wIdx = i; break; }
+  }
+  if (wIdx === -1) return { wrapperPill: null, head: before.slice() };
+  const w = before[wIdx];
+  const item = CATALOGUE.find((c) => c.kind === 'wrapper' && c.head === w);
+  const wrapperPill = item
+    ? makePill(item)
+    : makePill({ id: 'w_raw', kind: 'wrapper', cat: 'wrapper' }, { head: w, name: w });
+  const head = before.slice(0, wIdx).concat(before.slice(wIdx + 1));
+  return { wrapperPill, head };
+}
+
+// A single head token -> its catalogue pill (toggle/tool/choice/input) or a custom pill.
+function headTokenToPill(tok) {
+  const c = CATALOGUE.find((x) => {
+    if (x.kind === 'toggle' || x.kind === 'tool') return x.token === tok;
+    if (x.kind === 'choice' || x.kind === 'input') return tok.startsWith(x.key + '=');
+    return false;
+  });
+  if (!c) return makeCustomPill(tok);
+  if (c.kind === 'choice' || c.kind === 'input') return makePill(c, { value: tok.slice(c.key.length + 1) });
+  return makePill(c);
+}
+
 function parseLine(str) {
   const tokens = (str || '').trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
   const ci = tokens.indexOf('%command%');
   const before = ci === -1 ? tokens : tokens.slice(0, ci);
 
-  // detect gamescope span
-  const gi = before.findIndex((t) => t === 'gamescope');
-  let wrapperPill = null;
-  let head = before.slice(); // tokens that form the env+tool+wrapper region
+  const gi = before.indexOf('gamescope');
+  const hasGamescope = gi !== -1;
+  const { wrapperPill, head } = hasGamescope
+    ? parseGamescopeSpan(before, gi)
+    : parseWrapperSpan(before);
 
-  if (gi !== -1) {
-    // gamescope ... -- ; nested envs are env tokens immediately preceding gamescope
-    const dashIdx = before.indexOf('--', gi);
-    const flagToks = before.slice(gi + 1, dashIdx === -1 ? before.length : dashIdx);
-    const cfg = { ...GAMESCOPE_DEFAULT };
-    Object.keys(cfg).forEach((k) => { if (typeof cfg[k] === 'boolean') cfg[k] = false; });
-    for (let i = 0; i < flagToks.length; i++) {
-      const f = flagToks[i];
-      const flagDef = GAMESCOPE_SCHEMA.flags.find((x) => x.flag === f);
-      const togDef = GAMESCOPE_SCHEMA.toggles.find((x) => x.flag === f);
-      if (flagDef) { cfg[flagDef.key] = flagToks[i + 1] || ''; i++; }
-      else if (togDef) cfg[togDef.key] = true;
-    }
-    // nested envs (preceding gamescope) that belong to the gamescope schema
-    GAMESCOPE_SCHEMA.envs.forEach((e) => { if (before.includes(`${e.key}=1`)) cfg[e.key] = true; });
-    wrapperPill = makePill(CAT_BY_ID.w_gamescope, { cfg });
-    head = before.slice(0, gi).filter((t) => !GAMESCOPE_SCHEMA.envs.some((e) => `${e.key}=1` === t));
-  } else {
-    // wrapper is the last bare (non-env) token in `before`
-    let wIdx = -1;
-    for (let i = before.length - 1; i >= 0; i--) { if (!isEnvToken(before[i])) { wIdx = i; break; } }
-    if (wIdx !== -1) {
-      const w = before[wIdx];
-      const item = CATALOGUE.find((c) => c.kind === 'wrapper' && c.head === w);
-      if (item) { wrapperPill = makePill(item); head = before.slice(0, wIdx).concat(before.slice(wIdx + 1)); }
-      else {
-        // unknown/stale wrapper -> raw wrapper pill carrying the literal head, flagged later
-        wrapperPill = makePill({ id: 'w_raw', kind: 'wrapper', cat: 'wrapper' }, { head: w, name: w });
-        head = before.slice(0, wIdx).concat(before.slice(wIdx + 1));
-      }
-    }
-  }
-
-  // remaining head tokens -> env/tool/custom pills
-  const pills = [];
-  head.forEach((tok) => {
-    const c = CATALOGUE.find((x) => {
-      if (x.kind === 'toggle' || x.kind === 'tool') return x.token === tok;
-      if (x.kind === 'choice' || x.kind === 'input') return tok.startsWith(x.key + '=');
-      return false;
-    });
-    if (!c) { pills.push(makeCustomPill(tok)); return; }
-    if (c.kind === 'choice') pills.push(makePill(c, { value: tok.slice(c.key.length + 1) }));
-    else if (c.kind === 'input') pills.push(makePill(c, { value: tok.slice(c.key.length + 1) }));
-    else pills.push(makePill(c));
-  });
+  const pills = head.map(headTokenToPill);
   if (wrapperPill) pills.push(wrapperPill);
   else if (ci !== -1) pills.push(makePill({ id: 'w_raw', kind: 'wrapper', cat: 'wrapper', head: '' }));
   return pills;

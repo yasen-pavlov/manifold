@@ -8,16 +8,89 @@ import { Catalogue } from "./catalogue.jsx";
 import { composeLine, validateLine, parseLine, makePill, makeCustomPill, isEnvToken } from "./catalogue-data.jsx";
 
 const newUid = () => 'pill' + Math.random().toString(36).slice(2);
+const keyAct = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); } };
+
+function miniClass(t) {
+  if (t === '%command%') return 'cmd';
+  if (isEnvToken(t)) return 'env';
+  return '';
+}
 
 /* mono mini-highlighter for compact preset lines */
 function MiniLine({ value }) {
   const toks = (value || '').split(/(\s+)/);
-  return <>{toks.map((t, i) => {
-    if (/^\s+$/.test(t)) return t;
-    if (t === '%command%') return <span key={i} className="cmd">{t}</span>;
-    if (isEnvToken(t)) return <span key={i} className="env">{t}</span>;
-    return <span key={i}>{t}</span>;
-  })}</>;
+  return <>{toks.map((t, i) => (/^\s+$/.test(t) ? t : <span key={`${i}-${t}`} className={miniClass(t)}>{t}</span>))}</>;
+}
+
+function presetStatusHint(canSave, name, hasError) {
+  if (canSave) return 'Ready to save.';
+  if (!name.trim()) return 'Name the preset to save.';
+  if (hasError) return 'Fix errors before saving.';
+  return 'Add a wrapper to save.';
+}
+
+/* "Start from preset" dropdown list */
+function StartFromPreset({ presets, onPick }) {
+  return (
+    <div className="mixed-list" style={{ marginTop: 0, marginBottom: 14, borderColor: 'var(--acc-line)' }}>
+      {presets.length === 0 && <div className="mixed-row"><span className="mr-str" style={{ color: 'var(--tx-faint)' }}>No saved presets yet.</span></div>}
+      {presets.map((p) => (
+        <div key={p.id} className="mixed-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPick(p)} onKeyDown={keyAct(() => onPick(p))}>
+          <Icon name="bookmark" size={13} style={{ color: 'var(--acc)' }} />
+          <span style={{ color: 'var(--tx-hi)', fontWeight: 500, fontSize: 12, minWidth: 120 }}>{p.name}</span>
+          <span className="mr-str">{p.value}</span>
+          <Icon name="cornerDownRight" size={13} style={{ color: 'var(--tx-faint)' }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* mixed-selection detail (apply context, when selected games differ) */
+function MixedLines({ mixedLines, targetCount }) {
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div className="canvas-block-label"><Icon name="alert" size={13} style={{ color: 'var(--warn)' }} />Current lines differ<span className="cbl-line" /></div>
+      <div className="mixed-list">
+        {mixedLines.slice(0, 5).map(([line, ct]) => (
+          <div className="mixed-row" key={line || '(empty)'}>
+            <span className="mr-ct">{ct}x</span>
+            <span className="mr-str">{line || <span style={{ color: 'var(--tx-faint)' }}>empty</span>}</span>
+          </div>
+        ))}
+        {mixedLines.length > 5 && <div className="mixed-row"><span className="mr-ct" /><span className="mr-str">+{mixedLines.length - 5} more…</span></div>}
+      </div>
+      <div style={{ fontSize: 11.5, color: 'var(--tx-faint)', marginTop: 8 }}>Applying overwrites all {targetCount} with the line above.</div>
+    </div>
+  );
+}
+
+/* footer actions - differ between preset and apply contexts */
+function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canApply, hasError, targetCount, pills, onClose, onSavePreset, onApply, onStartFromPreset }) {
+  if (isPreset) {
+    return (
+      <div className="builder-foot">
+        <div style={{ fontSize: 11.5, color: 'var(--tx-faint)', whiteSpace: 'nowrap' }}>{presetStatusHint(canSave, name, hasError)}</div>
+        <div className="bf-spacer" />
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={!canSave} onClick={() => onSavePreset({ id: context.preset?.id, name: name.trim(), desc: desc.trim(), value: finalStr })}>
+          <Icon name="save" size={14} />{context.preset?.id ? 'Save changes' : 'Save preset'}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="builder-foot">
+      <button className="btn ghost" onClick={() => onStartFromPreset?.('save', pills)} title="Save this line as a reusable preset" disabled={!canApply}>
+        <Icon name="bookmark" size={14} />Save as preset
+      </button>
+      <div className="bf-spacer" />
+      <button className="btn ghost" onClick={onClose}>Cancel</button>
+      <button className="btn primary" disabled={!canApply} onClick={() => onApply(finalStr)}>
+        <Icon name="check" size={14} />{`Apply to ${targetCount} game${targetCount === 1 ? '' : 's'}`}
+      </button>
+    </div>
+  );
 }
 
 /* ============================================================
@@ -76,8 +149,8 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
   }, [rawMode]);
 
   const toggleRaw = () => {
-    if (!rawMode) { setRawText(composeLine(pills)); setRawMode(true); }
-    else { const parsed = parseLine(rawText); setPills(parsed); setRawMode(false); }
+    if (rawMode) { setPills(parseLine(rawText)); setRawMode(false); }
+    else { setRawText(composeLine(pills)); setRawMode(true); }
   };
   const onRawChange = (v) => { setRawText(v); };
 
@@ -93,21 +166,31 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
   const canSave = canApply && name.trim();
 
   const targetCount = context.targets?.length || 0;
+  let headerTitle = 'Set launch options';
+  if (isPreset) headerTitle = context.preset?.id ? 'Edit preset' : 'New preset';
 
   return (
-    <div className="builder-scrim" onClick={onClose}>
-      <div className="builder" onClick={(e) => e.stopPropagation()} role="dialog">
+    <dialog className="modal-host" open aria-label={isPreset ? 'Preset editor' : 'Set launch options'}>
+      <div
+        className="builder-scrim"
+        role="button"
+        tabIndex={-1}
+        aria-label="Close"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      >
+        <div className="builder">
         {/* header */}
         <div className="builder-head">
           <div className="bh-icon"><Icon name={isPreset ? 'bookmark' : 'terminal'} size={16} /></div>
           <div className="bh-titles">
-            <div className="bh-title">{isPreset ? (context.preset?.id ? 'Edit preset' : 'New preset') : 'Set launch options'}</div>
+            <div className="bh-title">{headerTitle}</div>
             <div className="bh-sub">
               {isPreset ? (
                 <span>A preset is a saved launch line. Compose it below.</span>
               ) : (
                 <>
-                  <span>Applying to <b>{`${targetCount} game${targetCount !== 1 ? 's' : ''}`}</b></span>
+                  <span>Applying to <b>{`${targetCount} game${targetCount === 1 ? '' : 's'}`}</b></span>
                   {mixedLines && mixedLines.length > 1 && <span className="mix-badge"><Icon name="alert" size={11} />mixed selection</span>}
                 </>
               )}
@@ -123,13 +206,13 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
             <div className="canvas-scroll">
               {isPreset && (
                 <div className="preset-fields">
-                  <div className="pf-row"><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Native HDR" spellCheck={false} /></div>
-                  <div className="pf-row"><label>Description</label><input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What it does, when to use it" spellCheck={false} /></div>
+                  <div className="pf-row"><label htmlFor="preset-name">Name</label><input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Native HDR" spellCheck={false} /></div>
+                  <div className="pf-row"><label htmlFor="preset-desc">Description</label><input id="preset-desc" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What it does, when to use it" spellCheck={false} /></div>
                 </div>
               )}
 
               <div className="canvas-block-label">
-                <Icon name="layers" size={13} />Launch line<span className="cbl-ct">{pills.length} block{pills.length !== 1 ? 's' : ''}</span>
+                <Icon name="layers" size={13} />Launch line<span className="cbl-ct">{pills.length} block{pills.length === 1 ? '' : 's'}</span>
                 <span className="cbl-line" />
                 <span className="cbl-act">
                   <button className="btn ghost" style={{ height: 24, padding: '0 8px', fontSize: 11 }} onClick={() => setStartOpen((v) => !v)}><Icon name="bookmark" size={12} />Start from preset</button>
@@ -137,19 +220,7 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
                 </span>
               </div>
 
-              {startOpen && (
-                <div className="mixed-list" style={{ marginTop: 0, marginBottom: 14, borderColor: 'var(--acc-line)' }}>
-                  {presets.length === 0 && <div className="mixed-row"><span className="mr-str" style={{ color: 'var(--tx-faint)' }}>No saved presets yet.</span></div>}
-                  {presets.map((p) => (
-                    <div key={p.id} className="mixed-row" style={{ cursor: 'pointer' }} onClick={() => loadPreset(p)}>
-                      <Icon name="bookmark" size={13} style={{ color: 'var(--acc)' }} />
-                      <span style={{ color: 'var(--tx-hi)', fontWeight: 500, fontSize: 12, minWidth: 120 }}>{p.name}</span>
-                      <span className="mr-str">{p.value}</span>
-                      <Icon name="cornerDownRight" size={13} style={{ color: 'var(--tx-faint)' }} />
-                    </div>
-                  ))}
-                </div>
-              )}
+              {startOpen && <StartFromPreset presets={presets} onPick={loadPreset} />}
 
               <PillLine pills={pills} flagged={validation.flagged} onChange={setPillsAndExitRaw} />
 
@@ -158,21 +229,8 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
                 rawMode={rawMode} onToggleRaw={toggleRaw} rawText={rawText} onRawChange={onRawChange}
               />
 
-              {/* mixed selection detail */}
               {!isPreset && mixedLines && mixedLines.length > 1 && (
-                <div style={{ marginTop: 16 }}>
-                  <div className="canvas-block-label"><Icon name="alert" size={13} style={{ color: 'var(--warn)' }} />Current lines differ<span className="cbl-line" /></div>
-                  <div className="mixed-list">
-                    {mixedLines.slice(0, 5).map(([line, ct], i) => (
-                      <div className="mixed-row" key={i}>
-                        <span className="mr-ct">{ct}x</span>
-                        <span className="mr-str">{line || <span style={{ color: 'var(--tx-faint)' }}>empty</span>}</span>
-                      </div>
-                    ))}
-                    {mixedLines.length > 5 && <div className="mixed-row"><span className="mr-ct" /><span className="mr-str">+{mixedLines.length - 5} more…</span></div>}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--tx-faint)', marginTop: 8 }}>Applying overwrites all {targetCount} with the line above.</div>
-                </div>
+                <MixedLines mixedLines={mixedLines} targetCount={targetCount} />
               )}
             </div>
           </div>
@@ -183,32 +241,14 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
           </div>
         </div>
 
-        {/* footer */}
-        <div className="builder-foot">
-          {isPreset ? (
-            <>
-              <div style={{ fontSize: 11.5, color: 'var(--tx-faint)', whiteSpace: 'nowrap' }}>{canSave ? 'Ready to save.' : !name.trim() ? 'Name the preset to save.' : hasError ? 'Fix errors before saving.' : 'Add a wrapper to save.'}</div>
-              <div className="bf-spacer" />
-              <button className="btn ghost" onClick={onClose}>Cancel</button>
-              <button className="btn primary" disabled={!canSave} onClick={() => onSavePreset({ id: context.preset?.id, name: name.trim(), desc: desc.trim(), value: finalStr })}>
-                <Icon name="save" size={14} />{context.preset?.id ? 'Save changes' : 'Save preset'}
-              </button>
-            </>
-          ) : (
-            <>
-              <button className="btn ghost" onClick={() => onStartFromPreset?.('save', pills)} title="Save this line as a reusable preset" disabled={!canApply}>
-                <Icon name="bookmark" size={14} />Save as preset
-              </button>
-              <div className="bf-spacer" />
-              <button className="btn ghost" onClick={onClose}>Cancel</button>
-              <button className="btn primary" disabled={!canApply} onClick={() => onApply(finalStr)}>
-                <Icon name="check" size={14} />{`Apply to ${targetCount} game${targetCount !== 1 ? 's' : ''}`}
-              </button>
-            </>
-          )}
-        </div>
+        <BuilderFooter
+          isPreset={isPreset} context={context} name={name} desc={desc} finalStr={finalStr}
+          canSave={canSave} canApply={canApply} hasError={hasError} targetCount={targetCount} pills={pills}
+          onClose={onClose} onSavePreset={onSavePreset} onApply={onApply} onStartFromPreset={onStartFromPreset}
+        />
       </div>
     </div>
+    </dialog>
   );
 }
 
@@ -239,11 +279,11 @@ function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, h
               <div className="pc-row">
                 <div className="pc-ico"><Icon name="bookmark" size={15} /></div>
                 <div className="pc-main">
-                  <div className="pc-name">{p.name}<span className="pc-pillct">{pills.length} block{pills.length !== 1 ? 's' : ''}</span></div>
+                  <div className="pc-name">{p.name}<span className="pc-pillct">{pills.length} block{pills.length === 1 ? '' : 's'}</span></div>
                   <div className="pc-desc">{p.desc || <span style={{ color: 'var(--tx-faint)' }}>No description</span>}</div>
                   <div className="pc-mini">
-                    {blocks.map((b, i) => (
-                      <span className="mini-pill" key={i}>{b.kind === 'choice' || b.kind === 'input' ? `${b.key}=${b.value}` : b.token || b.name}</span>
+                    {blocks.map((b) => (
+                      <span className="mini-pill" key={b.uid}>{b.kind === 'choice' || b.kind === 'input' ? `${b.key}=${b.value}` : b.token || b.name}</span>
                     ))}
                     {wrapper && <span className="mini-pill wrap">{wrapper.name} ›</span>}
                   </div>
