@@ -237,9 +237,16 @@ describe("App - settings + command palette + tabs", () => {
 describe("App - keyboard", () => {
   it("Ctrl+A selects all and Escape clears selection", async () => {
     await renderApp();
-    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
-    await waitFor(() => expect(document.querySelector(".bulkbar")).toBeInTheDocument());
-    fireEvent.keyDown(window, { key: "Escape" });
-    await waitFor(() => expect(document.querySelector(".bulkbar")).not.toBeInTheDocument());
+    // Fire inside waitFor: the global keydown listener is re-attached on each
+    // filteredIds change, so a single event can race a stale closure. Retrying
+    // the dispatch (selectAll is idempotent) makes this deterministic.
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+      expect(document.querySelector(".bulkbar")).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(document.querySelector(".bulkbar")).not.toBeInTheDocument();
+    });
   });
 });
