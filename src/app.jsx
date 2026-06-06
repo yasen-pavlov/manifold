@@ -2,9 +2,11 @@
 import React, { useState as aS, useEffect as aE, useMemo as aM, useCallback as aC } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./icons.jsx";
-import { GAMES, PRESETS, OPTIONS, compatName, setCompatTools } from "./data.jsx";
+import { GAMES, compatName, setCompatTools } from "./data.jsx";
+import { parseLine } from "./catalogue-data.jsx";
+import { BuilderSurface, PresetsList } from "./builder.jsx";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table.jsx";
-import { LaunchSheet, CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces.jsx";
+import { CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces.jsx";
 
 const OS = (typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '')) ? 'mac'
   : (typeof navigator !== 'undefined' && /win/i.test(navigator.platform || '')) ? 'windows' : 'linux';
@@ -25,14 +27,13 @@ function applyZoom(target) {
     document.documentElement.style.zoom = String(clampScale(target) / dpr);
   } catch { /* no-op */ }
 }
-import { PresetsManager, ItemEditor, BackupsView, CommandPalette } from "./presets.jsx";
+import { BackupsView, CommandPalette } from "./presets.jsx";
 
 let _tid = 0;
 
 function App() {
   const [games, setGames] = aS([]);
-  const [presets, setPresets] = aS(() => PRESETS.map((p) => ({ ...p })));
-  const [options, setOptions] = aS(() => OPTIONS.map((o) => ({ ...o })));
+  const [presets, setPresets] = aS([]);
   const [loading, setLoading] = aS(true);
   const [scanError, setScanError] = aS(null);
 
@@ -46,10 +47,9 @@ function App() {
   const [bannerDismissed, setBannerDismissed] = aS(false);
   const [empty, setEmpty] = aS(false);
 
-  const [launchTargets, setLaunchTargets] = aS(null); // array | null
+  const [builder, setBuilder] = aS(null);             // builder context | null
   const [compatPop, setCompatPop] = aS(null);         // {anchor, targets}
   const [rowMenu, setRowMenu] = aS(null);             // {anchor, game}
-  const [editor, setEditor] = aS(null);               // item | null
   const [cmdk, setCmdk] = aS(false);
   const [toasts, setToasts] = aS([]);
   const [steamPrompt, setSteamPrompt] = aS(null); // { count, run(mode) } | null
@@ -114,6 +114,22 @@ function App() {
   const clearSel = () => setSelected(new Set());
   const selectAll = () => setSelected(new Set(filteredIds));
   const toggleFilter = (id) => setFilters((f) => ({ ...f, [id]: !f[id] }));
+
+  /* ---------- open the builder for a set of games (apply context) ---------- */
+  const openBuilderFor = (gameList) => {
+    if (!gameList || gameList.length === 0) return;
+    const lines = [...new Set(gameList.map((g) => g.launch || ''))];
+    const sharedLine = lines.length === 1 ? lines[0] : '';
+    const mixedMap = new Map();
+    gameList.forEach((g) => mixedMap.set(g.launch || '', (mixedMap.get(g.launch || '') || 0) + 1));
+    const mixedLines = [...mixedMap.entries()].sort((a, b) => b[1] - a[1]);
+    setBuilder({
+      mode: 'apply',
+      targets: gameList,
+      initialPills: sharedLine ? parseLine(sharedLine) : [],
+      mixedLines,
+    });
+  };
 
   /* ---------- writes (via the Rust backend) ---------- */
   const refreshFrom = (lib) => {
@@ -199,7 +215,7 @@ function App() {
     if (ts.length === 0) return;
     const undo = { kind: 'launch', changes: ts.map((g) => [g.appid, g.launch || '']) };
     const changes = ts.map((g) => [g.appid, value]);
-    setLaunchTargets(null);
+    setBuilder(null);
     applyWrite(ts.length, () => writeLaunch(changes, {
       title: value ? `Launch options set · ${plural(ts.length)}` : `Launch options cleared · ${plural(ts.length)}`,
       sub: value || undefined,
@@ -223,41 +239,34 @@ function App() {
   };
 
   /* ---------- preset CRUD (persisted to ~/.config/manifold/presets.json) ---------- */
-  const persistPresets = (nextPresets, nextOptions) => {
-    setPresets(nextPresets);
-    setOptions(nextOptions);
-    invoke('save_presets', { store: { presets: nextPresets, options: nextOptions } })
+  // A preset is { id, name, desc, value } - one unified list, value is the launch string.
+  const persistPresets = (next) => {
+    setPresets(next);
+    invoke('save_presets', { store: { presets: next } })
       .catch((e) => toast({ kind: 'err', title: 'Could not save presets', sub: String(e) }));
   };
-  const saveItem = (item) => {
-    const id = item.id || (item.kind + '_' + Date.now());
-    const norm = { ...item, id };
-    let p = presets, o = options;
-    if (item.kind === 'preset') {
-      o = options.filter((x) => x.id !== id); // in case the kind was switched
-      p = presets.some((x) => x.id === id) ? presets.map((x) => (x.id === id ? norm : x)) : [...presets, norm];
-    } else {
-      p = presets.filter((x) => x.id !== id);
-      o = options.some((x) => x.id === id) ? options.map((x) => (x.id === id ? norm : x)) : [...options, norm];
-    }
-    persistPresets(p, o);
-    setEditor(null);
-    toast({ kind: 'ok', title: `${item.kind === 'preset' ? 'Preset' : 'Option'} saved`, sub: item.name });
+  const savePreset = (preset) => {
+    const exists = preset.id && presets.some((p) => p.id === preset.id);
+    const next = exists
+      ? presets.map((p) => (p.id === preset.id ? { ...p, ...preset } : p))
+      : [...presets, { ...preset, id: preset.id || ('pre_' + Date.now()) }];
+    persistPresets(next);
+    setBuilder(null);
+    toast({ kind: 'ok', title: exists ? 'Preset saved' : 'Preset created', sub: preset.name });
   };
-  const deleteItem = (item) => {
-    persistPresets(presets.filter((x) => x.id !== item.id), options.filter((x) => x.id !== item.id));
-    toast({ kind: 'ok', title: 'Deleted', sub: item.name });
+  const deletePreset = (p) => {
+    persistPresets(presets.filter((x) => x.id !== p.id));
+    toast({ kind: 'ok', title: 'Preset deleted', sub: p.name });
   };
-  const duplicateItem = (item) => {
-    const copy = { ...item, id: item.kind + '_' + Date.now(), name: item.name + ' copy' };
-    if (item.kind === 'preset') persistPresets([...presets, copy], options);
-    else persistPresets(presets, [...options, copy]);
-  };
+  const duplicatePreset = (p) => persistPresets([...presets, { ...p, id: 'pre_' + Date.now(), name: p.name + ' copy' }]);
+  const applyPresetToSelection = (p) => applyLaunch(targets.map((t) => t.id), p.value);
+  // "Save as preset" from the apply context: reopen the builder in preset mode, carrying the line.
+  const startFromApply = (_kind, pills) => setBuilder({ mode: 'preset', preset: null, initialPills: pills.map((p) => ({ ...p })) });
 
   /* ---------- row menu actions ---------- */
   const rowAction = (action) => {
     const g = rowMenu.game; setRowMenu(null);
-    if (action === 'launch') setLaunchTargets([g]);
+    if (action === 'launch') openBuilderFor([g]);
     else if (action === 'compat') setCompatPop({ anchor: rowMenu.anchor, targets: [g] });
     else if (action === 'clear') clearLaunch([g.id]);
     else if (action === 'copyLaunch') { navigator.clipboard?.writeText(g.launch); toast({ kind: 'ok', title: 'Copied launch string' }); }
@@ -270,17 +279,16 @@ function App() {
     const sel = targets.length;
     const c = [];
     if (sel > 0) {
-      c.push({ id: 'c_launch', group: 'Selection', icon: 'terminal', name: `Set launch options on ${sel} game${sel !== 1 ? 's' : ''}…`, hint: '', run: () => setLaunchTargets(targets) });
+      c.push({ id: 'c_launch', group: 'Selection', icon: 'terminal', name: `Set launch options on ${sel} game${sel !== 1 ? 's' : ''}…`, hint: '', run: () => openBuilderFor(targets) });
       c.push({ id: 'c_compat', group: 'Selection', icon: 'cpu', name: `Set compatibility on ${sel} game${sel !== 1 ? 's' : ''}…`, run: () => setCompatPop({ anchor: centerAnchor(), targets }) });
       c.push({ id: 'c_clear', group: 'Selection', icon: 'x', name: `Clear launch options on ${sel} game${sel !== 1 ? 's' : ''}`, run: () => clearLaunch(targets.map((t) => t.id)) });
       c.push({ id: 'c_desel', group: 'Selection', icon: 'x', name: 'Deselect all', run: clearSel });
     }
     c.push({ id: 'c_selall', group: 'Selection', icon: 'check', name: 'Select all (filtered)', run: selectAll });
     c.push({ id: 'g_lib', group: 'Go to', icon: 'layers', name: 'Library', run: () => setTab('library') });
-    c.push({ id: 'g_pre', group: 'Go to', icon: 'sliders', name: 'Presets & options', run: () => setTab('presets') });
+    c.push({ id: 'g_pre', group: 'Go to', icon: 'bookmark', name: 'Presets', run: () => setTab('presets') });
     c.push({ id: 'g_bak', group: 'Go to', icon: 'history', name: 'Backups', run: () => setTab('backups') });
-    c.push({ id: 'n_pre', group: 'Create', icon: 'plus', name: 'New preset', run: () => { setTab('presets'); setEditor({ kind: 'preset' }); } });
-    c.push({ id: 'n_opt', group: 'Create', icon: 'plus', name: 'New single option', run: () => { setTab('presets'); setEditor({ kind: 'option' }); } });
+    c.push({ id: 'n_pre', group: 'Create', icon: 'plus', name: 'New preset', run: () => { setTab('presets'); setBuilder({ mode: 'preset', preset: null, initialPills: [] }); } });
     c.push({ id: 'steam_ctl', group: 'Steam', icon: 'power', name: steamRunning ? 'Close Steam' : 'Start Steam', run: () => (steamRunning ? closeSteam() : startSteam()) });
     c.push({ id: 'l_rescan', group: 'Library', icon: 'refresh', name: 'Re-scan library', run: () => loadLibrary() });
     c.push({ id: 'settings', group: 'Go to', icon: 'settings', name: 'Settings', run: () => setSettingsOpen(true) });
@@ -325,7 +333,6 @@ function App() {
         const store = await invoke('load_presets');
         if (cancelled || !store) return;
         setPresets(Array.isArray(store.presets) ? store.presets : []);
-        setOptions(Array.isArray(store.options) ? store.options : []);
       } catch (e) {
         // not under Tauri (e.g. vite preview) - keep the in-memory seed defaults
       }
@@ -377,11 +384,11 @@ function App() {
     const p = new URLSearchParams(location.search).get('open');
     if (!p) return;
     const first = games.slice(0, 4);
-    if (p === 'launch') { setSelected(new Set(first.map((g) => g.id))); setLaunchTargets(first); }
-    else if (p === 'launchmixed') { const t = [games.find(g=>g.launch.includes('OPTISCALER')), games.find(g=>!g.launch), games.find(g=>g.launch.includes('HDR'))].filter(Boolean); setSelected(new Set(t.map(g=>g.id))); setLaunchTargets(t); }
+    if (p === 'launch') { setSelected(new Set(first.map((g) => g.id))); openBuilderFor(first); }
+    else if (p === 'launchmixed') { const t = [games.find(g=>g.launch.includes('OPTISCALER')), games.find(g=>!g.launch), games.find(g=>g.launch.includes('HDR'))].filter(Boolean); setSelected(new Set(t.map(g=>g.id))); openBuilderFor(t); }
     else if (p === 'compat') { setSelected(new Set(first.map((g) => g.id))); setCompatPop({ anchor: centerAnchor(), targets: first }); }
     else if (p === 'presets') setTab('presets');
-    else if (p === 'editor') { setTab('presets'); setEditor({ kind: 'preset', name: 'Native HDR', desc: 'Wayland-native HDR pipeline (Proton + DXVK).', value: 'PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%', id: 'p_hdr' }); }
+    else if (p === 'editor') { setTab('presets'); setBuilder({ mode: 'preset', preset: null, initialPills: [] }); }
     else if (p === 'backups') setTab('backups');
     else if (p === 'steam') { setSteamRunning(true); setSelected(new Set(first.map((g) => g.id))); }
     else if (p === 'empty') setEmpty(true);
@@ -393,18 +400,17 @@ function App() {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdk((v) => !v); }
       else if (e.key === 'Escape') {
-        if (launchTargets) setLaunchTargets(null);
-        else if (editor) setEditor(null);
+        if (builder) setBuilder(null);
         else if (compatPop) setCompatPop(null);
         else if (selected.size) clearSel();
       }
-      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && tab === 'library' && !launchTargets && !editor) {
+      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && tab === 'library' && !builder) {
         if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') { e.preventDefault(); selectAll(); }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [launchTargets, editor, compatPop, selected, tab, filteredIds]);
+  }, [builder, compatPop, selected, tab, filteredIds]);
 
   const showBanner = steamRunning && !bannerDismissed;
   const controlsSide = resolveControlsSide(settings.window_controls);
@@ -420,11 +426,11 @@ function App() {
         </div>
         <div className="tb-spacer" data-tauri-drag-region />
         <div className="tabs">
-          {[['library', 'Library', 'layers'], ['presets', 'Presets', 'sliders'], ['backups', 'Backups', 'history']].map(([id, label, icon]) => (
+          {[['library', 'Library', 'layers'], ['presets', 'Presets', 'bookmark'], ['backups', 'Backups', 'history']].map(([id, label, icon]) => (
             <button key={id} className={'tab' + (tab === id ? ' active' : '')} onClick={() => setTab(id)}>
               <Icon name={icon} size={14} />{label}
               {id === 'library' && <span className="badge-count">{games.length}</span>}
-              {id === 'presets' && <span className="badge-count">{presets.length + options.length}</span>}
+              {id === 'presets' && <span className="badge-count">{presets.length}</span>}
             </button>
           ))}
         </div>
@@ -446,14 +452,14 @@ function App() {
             onToggle={toggle} onToggleAll={toggleAll} headState={headState}
             onCompatClick={(e, g) => { const r = e.currentTarget.getBoundingClientRect(); setCompatPop({ anchor: r, targets: [g] }); }}
             onRowMenu={(e, g) => { const r = e.currentTarget.getBoundingClientRect(); setRowMenu({ anchor: r, game: g }); }}
-            onLaunchClick={(g) => setLaunchTargets([g])}
+            onLaunchClick={(g) => openBuilderFor([g])}
           />
           {targets.length > 0 && (
             <BulkBar
               count={targets.length}
               installedCount={targets.filter((t) => t.status === 'installed').length}
               ownedCount={targets.filter((t) => t.status === 'owned').length}
-              onSetLaunch={() => setLaunchTargets(targets)}
+              onSetLaunch={() => openBuilderFor(targets)}
               onSetCompat={() => setCompatPop({ anchor: centerAnchor(), targets })}
               onClearLaunch={() => clearLaunch(targets.map((t) => t.id))}
               onClear={clearSel}
@@ -464,20 +470,32 @@ function App() {
       ))}
 
       {tab === 'presets' && (
-        <PresetsManager presets={presets} options={options}
-          onEdit={(it) => setEditor(it)} onNew={(kind) => setEditor({ kind })}
-          onDuplicate={duplicateItem} onDelete={deleteItem} />
+        <PresetsList
+          presets={presets}
+          onNew={() => setBuilder({ mode: 'preset', preset: null, initialPills: [] })}
+          onEdit={(p) => setBuilder({ mode: 'preset', preset: p, initialPills: parseLine(p.value) })}
+          onDuplicate={duplicatePreset}
+          onDelete={deletePreset}
+          onApply={applyPresetToSelection}
+          hasSelection={selected.size > 0}
+          selCount={selected.size}
+        />
       )}
       {tab === 'backups' && <BackupsView onRestore={(b) => toast({ kind: 'ok', title: 'Backup restored', sub: `${b.when} · ${b.games} games` })} />}
 
       <Footer total={games.length} installed={counts.installed} shown={rows.length} selected={selected.size} steamRunning={steamRunning} steamBusy={steamBusy} onCloseSteam={closeSteam} onStartSteam={startSteam} />
 
       {/* overlays */}
-      {launchTargets && (
-        <LaunchSheet targets={launchTargets} presets={presets} options={options}
-          onApply={(val) => applyLaunch(launchTargets.map((t) => t.id), val)}
-          onClear={() => clearLaunch(launchTargets.map((t) => t.id))}
-          onClose={() => setLaunchTargets(null)} />
+      {builder && (
+        <BuilderSurface
+          context={builder}
+          presets={presets}
+          mixedLines={builder.mixedLines}
+          onApply={(val) => applyLaunch(builder.targets.map((t) => t.id), val)}
+          onSavePreset={savePreset}
+          onStartFromPreset={startFromApply}
+          onClose={() => setBuilder(null)}
+        />
       )}
       {compatPop && (
         <CompatPicker anchor={compatPop.anchor} targets={compatPop.targets}
@@ -485,7 +503,6 @@ function App() {
           onClose={() => setCompatPop(null)} />
       )}
       {rowMenu && <RowMenu anchor={rowMenu.anchor} game={rowMenu.game} onAction={rowAction} onClose={() => setRowMenu(null)} />}
-      {editor && <ItemEditor item={editor} onSave={saveItem} onClose={() => setEditor(null)} />}
       {cmdk && <CommandPalette commands={commands} onClose={() => setCmdk(false)} />}
       {steamPrompt && <SteamConfirm count={steamPrompt.count} onChoose={steamPrompt.run} />}
       {settingsOpen && (

@@ -139,7 +139,12 @@ mod tests {
         let path = dir.join("settings.json");
         let _ = fs::remove_dir_all(&dir);
 
-        let s = Settings { steam_root: "/x/steam".into(), silent_start: false };
+        let s = Settings {
+            steam_root: "/x/steam".into(),
+            silent_start: false,
+            window_controls: default_window_controls(),
+            ui_scale: default_ui_scale(),
+        };
         write_at(&path, &s).unwrap();
         let back: Settings = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(back.steam_root, "/x/steam");

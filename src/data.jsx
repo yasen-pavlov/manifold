@@ -8,24 +8,6 @@ const COMPAT_TOOLS = [
   { id: 'luxt',     name: 'luxtorpeda',            note: 'Native engine replacements' },
 ];
 
-// named launch lines
-const PRESETS = [
-  { id: 'p_hdr',    kind: 'preset', name: 'Native HDR',         desc: 'Wayland-native HDR pipeline (Proton + DXVK).', value: 'PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%' },
-  { id: 'p_xw',     kind: 'preset', name: 'XWayland (overlay)', desc: 'Force XWayland - for overlays & legacy capture.', value: 'game_xwayland %command%' },
-  { id: 'p_gs',     kind: 'preset', name: 'Gamescope HDR',      desc: 'Run inside a gamescope micro-compositor.', value: 'game_gamescope %command%' },
-  { id: 'p_opti',   kind: 'preset', name: 'OptiScaler (DLSS→FSR4)', desc: 'Swap DLSS/XeSS for FSR4 via OptiScaler.', value: 'PROTON_USE_OPTISCALER=1 game %command%' },
-];
-
-// reusable fragments
-const OPTIONS = [
-  { id: 'o_opti', kind: 'option', name: 'PROTON_USE_OPTISCALER=1', desc: 'Force OptiScaler (use FSR4 in DLSS/XeSS-only games)', value: 'PROTON_USE_OPTISCALER=1' },
-  { id: 'o_dlss', kind: 'option', name: 'PROTON_DLSS_UPGRADE=1',   desc: 'Deploy DLSS DLLs so OptiScaler can hook DLSS',     value: 'PROTON_DLSS_UPGRADE=1' },
-  { id: 'o_mh',   kind: 'option', name: 'mangohud',                desc: 'Show the MangoHud performance overlay',           value: 'mangohud' },
-  { id: 'o_hud',  kind: 'option', name: 'DXVK_HUD=fps',            desc: 'DXVK FPS counter',                                value: 'DXVK_HUD=fps' },
-  { id: 'o_log',  kind: 'option', name: 'PROTON_LOG=1',            desc: 'Write a Proton debug log',                        value: 'PROTON_LOG=1' },
-  { id: 'o_gm',   kind: 'option', name: 'gamemoderun',            desc: 'Run under Feral GameMode',                        value: 'gamemoderun' },
-];
-
 // --- library ---------------------------------------------------------------
 // status: 'installed' | 'owned'  ·  compat: COMPAT_TOOLS id
 function g(name, appid, installed, compat, launch, sizeGB) {
@@ -117,6 +99,6 @@ function setCompatTools(list) {
 }
 
 export {
-  COMPAT_TOOLS, PRESETS, OPTIONS, GAMES,
+  COMPAT_TOOLS, GAMES,
   parseWrapper, tokenizeLaunch, HiLaunch, LIBRARY_PATH, compatName, setCompatTools,
 };

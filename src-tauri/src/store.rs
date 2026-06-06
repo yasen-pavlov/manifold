@@ -1,16 +1,23 @@
-// store.rs - persistence for user-created presets and single-options.
+// store.rs - persistence for user-created presets.
 //
-// Stored as JSON at ~/.config/manifold/presets.json. On first run the file is seeded
-// with a set of sensible defaults so the app isn't empty.
+// A preset is a saved launch line: an ordered list of building blocks composed to a single
+// `... %command%` string. There is ONE unified list (the old "presets" vs "single options"
+// distinction is gone - single options are now catalogue building blocks in the UI).
+//
+// Stored as JSON at ~/.config/manifold/presets.json. On first run the file is seeded with a
+// set of sensible defaults so the app isn't empty. Legacy files (with a separate `options`
+// list and per-item `kind`) are migrated on load and rewritten in the new shape.
 
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// A saved launch line. `value` is the composed `... %command%` string - the source of
+/// truth that gets written to Steam. The UI parses it into editable pills and composes it
+/// back, so the persisted format stays decoupled from the (evolving) catalogue schema.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PresetItem {
     pub id: String,
-    pub kind: String, // "preset" | "option"
     pub name: String,
     #[serde(default)]
     pub desc: String,
@@ -20,8 +27,32 @@ pub struct PresetItem {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PresetStore {
     pub presets: Vec<PresetItem>,
-    pub options: Vec<PresetItem>,
 }
+
+/// Legacy on-disk shape (pre-merge): two lists, each item carrying a `kind`. Used only to
+/// read older files; we never write this shape again.
+#[derive(Deserialize)]
+struct LegacyItem {
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    desc: String,
+    value: String,
+}
+
+#[derive(Deserialize)]
+struct LegacyStore {
+    #[serde(default)]
+    presets: Vec<LegacyItem>,
+    #[serde(default)]
+    options: Vec<LegacyItem>,
+}
+
+/// Default single-option ids that were seeded by older versions. On migration these are
+/// dropped (they now live in the UI catalogue); any other (user-created) option is kept by
+/// converting it into a preset so no user data is lost.
+const SEEDED_OPTION_IDS: &[&str] = &["o_opti", "o_dlss", "o_mh", "o_hud", "o_log", "o_gm"];
 
 fn config_dir() -> PathBuf {
     if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
@@ -38,10 +69,9 @@ fn presets_path() -> PathBuf {
     config_dir().join("presets.json")
 }
 
-fn item(id: &str, kind: &str, name: &str, desc: &str, value: &str) -> PresetItem {
+fn item(id: &str, name: &str, desc: &str, value: &str) -> PresetItem {
     PresetItem {
         id: id.into(),
-        kind: kind.into(),
         name: name.into(),
         desc: desc.into(),
         value: value.into(),
@@ -51,20 +81,54 @@ fn item(id: &str, kind: &str, name: &str, desc: &str, value: &str) -> PresetItem
 fn default_store() -> PresetStore {
     PresetStore {
         presets: vec![
-            item("p_hdr", "preset", "Native HDR", "Wayland-native HDR pipeline (Proton + DXVK).", "PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 game %command%"),
-            item("p_xw", "preset", "XWayland (overlay)", "Force XWayland - for overlays & legacy capture.", "game_xwayland %command%"),
-            item("p_gs", "preset", "Gamescope HDR", "Run inside a gamescope micro-compositor.", "game_gamescope %command%"),
-            item("p_opti", "preset", "OptiScaler (DLSS→FSR4)", "Swap DLSS/XeSS for FSR4 via OptiScaler.", "PROTON_USE_OPTISCALER=1 game %command%"),
-        ],
-        options: vec![
-            item("o_opti", "option", "PROTON_USE_OPTISCALER=1", "Force OptiScaler (use FSR4 in DLSS/XeSS-only games)", "PROTON_USE_OPTISCALER=1"),
-            item("o_dlss", "option", "PROTON_DLSS_UPGRADE=1", "Deploy DLSS DLLs so OptiScaler can hook DLSS", "PROTON_DLSS_UPGRADE=1"),
-            item("o_mh", "option", "mangohud", "Show the MangoHud performance overlay", "mangohud"),
-            item("o_hud", "option", "DXVK_HUD=fps", "DXVK FPS counter", "DXVK_HUD=fps"),
-            item("o_log", "option", "PROTON_LOG=1", "Write a Proton debug log", "PROTON_LOG=1"),
-            item("o_gm", "option", "gamemoderun", "Run under Feral GameMode", "gamemoderun"),
+            item(
+                "pre_hdr",
+                "Native HDR",
+                "Wayland-native HDR pipeline with the MangoHud overlay.",
+                "PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 mangohud %command%",
+            ),
+            item(
+                "pre_opti",
+                "OptiScaler (DLSS to FSR4)",
+                "Force FSR4 in DLSS/XeSS-only games via OptiScaler.",
+                "PROTON_USE_OPTISCALER=1 PROTON_DLSS_UPGRADE=1 game %command%",
+            ),
+            item(
+                "pre_gs",
+                "Gamescope HDR",
+                "4K240 gamescope session with HDR and VRR.",
+                "PROTON_USE_NTSYNC=1 ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1 gamescope -W 3840 -H 2160 -r 240 -o 60 -f --adaptive-sync --hdr-enabled -- %command%",
+            ),
+            item(
+                "pre_perf",
+                "CachyOS performance",
+                "Performance power profile under GameMode, capped at 120.",
+                "DXVK_FRAME_RATE=120 game-performance gamemoderun game %command%",
+            ),
         ],
     }
+}
+
+/// Fold a legacy two-list store into the unified single list. Returns the merged store and
+/// whether a migration actually happened (so the caller can rewrite the file).
+fn migrate(legacy: LegacyStore) -> (PresetStore, bool) {
+    let had_options = !legacy.options.is_empty();
+    let mut presets: Vec<PresetItem> = legacy
+        .presets
+        .into_iter()
+        .map(|i| item(&i.id, &i.name, &i.desc, &i.value))
+        .collect();
+
+    // Keep user-created options (anything not in the old default seed) by promoting them to
+    // presets; drop the seeded defaults, which are now catalogue building blocks.
+    for o in legacy.options {
+        if SEEDED_OPTION_IDS.contains(&o.id.as_str()) {
+            continue;
+        }
+        presets.push(item(&o.id, &o.name, &o.desc, &o.value));
+    }
+
+    (PresetStore { presets }, had_options)
 }
 
 fn write_store_at(path: &Path, store: &PresetStore) -> Result<(), String> {
@@ -80,12 +144,16 @@ fn write_store_at(path: &Path, store: &PresetStore) -> Result<(), String> {
     Ok(())
 }
 
-fn read_store(path: &Path) -> Result<PresetStore, String> {
+/// Read + migrate a store file. Returns the unified store and whether it should be rewritten.
+fn read_store(path: &Path) -> Result<(PresetStore, bool), String> {
     let text = fs::read_to_string(path).map_err(|e| format!("read presets: {e}"))?;
-    serde_json::from_str(&text).map_err(|e| format!("parse presets.json: {e}"))
+    let legacy: LegacyStore =
+        serde_json::from_str(&text).map_err(|e| format!("parse presets.json: {e}"))?;
+    Ok(migrate(legacy))
 }
 
-/// Load the preset store. Seeds defaults (and writes them) on first run.
+/// Load the preset store. Seeds defaults (and writes them) on first run; migrates + rewrites
+/// legacy files in place.
 pub fn load() -> Result<PresetStore, String> {
     let path = presets_path();
     if !path.exists() {
@@ -94,7 +162,12 @@ pub fn load() -> Result<PresetStore, String> {
         let _ = write_store_at(&path, &def);
         return Ok(def);
     }
-    read_store(&path)
+    let (store, migrated) = read_store(&path)?;
+    if migrated {
+        // best-effort rewrite in the new shape; ignore failure so load still succeeds
+        let _ = write_store_at(&path, &store);
+    }
+    Ok(store)
 }
 
 /// Persist the whole preset store.
@@ -115,17 +188,21 @@ mod tests {
         // write defaults, read them back
         let def = default_store();
         write_store_at(&path, &def).unwrap();
-        let loaded = read_store(&path).unwrap();
+        let (loaded, migrated) = read_store(&path).unwrap();
+        assert!(!migrated, "a fresh new-shape file must not report a migration");
         assert_eq!(loaded.presets.len(), def.presets.len());
-        assert_eq!(loaded.options.len(), def.options.len());
         assert_eq!(loaded.presets[0].name, "Native HDR");
 
         // mutate + persist + reload
         let mut s = loaded;
-        s.presets.push(item("p_custom", "preset", "My Preset", "desc", "gamemoderun game %command%"));
+        s.presets
+            .push(item("p_custom", "My Preset", "desc", "gamemoderun game %command%"));
         write_store_at(&path, &s).unwrap();
-        let again = read_store(&path).unwrap();
-        assert!(again.presets.iter().any(|p| p.id == "p_custom" && p.value.contains("gamemoderun")));
+        let (again, _) = read_store(&path).unwrap();
+        assert!(again
+            .presets
+            .iter()
+            .any(|p| p.id == "p_custom" && p.value.contains("gamemoderun")));
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -133,7 +210,51 @@ mod tests {
     #[test]
     fn defaults_are_sane() {
         let d = default_store();
-        assert!(d.presets.iter().all(|p| p.kind == "preset" && p.value.contains("%command%")));
-        assert!(d.options.iter().all(|o| o.kind == "option"));
+        assert!(d.presets.iter().all(|p| p.value.contains("%command%")));
+        // exactly one %command% in each seed
+        assert!(d
+            .presets
+            .iter()
+            .all(|p| p.value.matches("%command%").count() == 1));
+    }
+
+    #[test]
+    fn migrates_legacy_two_list_file() {
+        let dir = std::env::temp_dir().join(format!("manifold_migrate_{}", std::process::id()));
+        let path = dir.join("presets.json");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        // a legacy file: one real preset, one seeded option (dropped), one custom option (kept)
+        let legacy = r#"{
+            "presets": [
+                {"id":"p_hdr","kind":"preset","name":"Native HDR","desc":"d","value":"DXVK_HDR=1 game %command%"}
+            ],
+            "options": [
+                {"id":"o_mh","kind":"option","name":"mangohud","desc":"overlay","value":"mangohud"},
+                {"id":"o_custom","kind":"option","name":"My env","desc":"mine","value":"MY_VAR=1"}
+            ]
+        }"#;
+        fs::write(&path, legacy).unwrap();
+
+        let (store, migrated) = read_store(&path).unwrap();
+        assert!(migrated, "legacy file with options must report a migration");
+        assert!(store.presets.iter().any(|p| p.id == "p_hdr"));
+        assert!(
+            !store.presets.iter().any(|p| p.id == "o_mh"),
+            "seeded default option should be dropped"
+        );
+        assert!(
+            store.presets.iter().any(|p| p.id == "o_custom" && p.value == "MY_VAR=1"),
+            "user-created option should be promoted to a preset"
+        );
+
+        // load() should rewrite it in the new shape (no more `options`, no `kind`)
+        let _ = super::write_store_at(&path, &store);
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("\"options\""));
+        assert!(!text.contains("\"kind\""));
+
+        fs::remove_dir_all(&dir).ok();
     }
 }
