@@ -278,7 +278,7 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
 
 /* checkbox */
 .cbx {
-  width: 15px; height: 15px; border-radius: 3px;
+  width: 15px; height: 15px; border-radius: 3px; padding: 0;
   border: 1.5px solid var(--line-strong); background: var(--bg-inset);
   display: grid; place-items: center; cursor: pointer; flex: none;
   transition: background .08s, border-color .08s;
