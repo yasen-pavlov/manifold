@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+/// <reference types="vitest/config" />
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // @ts-expect-error process is a nodejs global
@@ -27,6 +28,24 @@ export default defineConfig(async () => ({
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
+    },
+  },
+
+  // Vitest: frontend unit tests. Coverage uses `all: true` so every source file is
+  // reported (files without tests count as 0%) - this is the baseline we raise over
+  // time. LCOV is consumed by SonarCloud.
+  test: {
+    environment: "jsdom",
+    globals: true,
+    passWithNoTests: true,
+    include: ["src/**/*.{test,spec}.{js,jsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "lcov"],
+      reportsDirectory: "./coverage",
+      all: true,
+      include: ["src/**/*.{js,jsx}"],
+      exclude: ["src/main.jsx", "**/*.config.*"],
     },
   },
 }));

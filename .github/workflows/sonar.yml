@@ -1,0 +1,64 @@
+name: Sonar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # full history so SonarCloud can attribute issues to authors / new code
+          fetch-depth: 0
+
+      # ---- Frontend coverage (vitest v8 -> coverage/lcov.info) ----
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Frontend coverage
+        run: npm run coverage
+
+      # ---- Backend coverage (cargo-llvm-cov -> src-tauri/lcov.info) ----
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
+            libssl-dev \
+            patchelf \
+            build-essential \
+            curl wget file pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Backend coverage
+        run: cargo llvm-cov --manifest-path src-tauri/Cargo.toml --lcov --output-path src-tauri/lcov.info
+      - name: Normalize coverage paths to repo root
+        # cargo-llvm-cov may emit absolute or crate-relative SF paths; make them
+        # repo-root-relative (src-tauri/...) so SonarCloud can resolve the files.
+        run: |
+          sed -i -E 's#^SF:.*/src-tauri/#SF:src-tauri/#; s#^SF:src/#SF:src-tauri/src/#' src-tauri/lcov.info
+
+      # ---- Analysis ----
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
