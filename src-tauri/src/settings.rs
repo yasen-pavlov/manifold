@@ -68,6 +68,9 @@ pub struct Settings {
     /// When true, closing the window hides Manifold to the tray instead of quitting.
     #[serde(default)]
     pub close_to_tray: bool,
+    /// When true, Manifold launches hidden in the tray (open it from the tray icon).
+    #[serde(default)]
+    pub start_minimized: bool,
 }
 
 impl Default for Settings {
@@ -78,6 +81,7 @@ impl Default for Settings {
             window_controls: default_window_controls(),
             ui_scale: default_ui_scale(),
             close_to_tray: false,
+            start_minimized: false,
         }
     }
 }
@@ -149,18 +153,21 @@ mod tests {
             window_controls: default_window_controls(),
             ui_scale: default_ui_scale(),
             close_to_tray: true,
+            start_minimized: true,
         };
         write_at(&path, &s).unwrap();
         let back: Settings = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(back.steam_root, "/x/steam");
         assert!(!back.silent_start);
         assert!(back.close_to_tray);
+        assert!(back.start_minimized);
 
         // missing fields fall back to defaults (forward/backward compat)
         let partial: Settings = serde_json::from_str("{}").unwrap();
         assert!(partial.silent_start);
         assert_eq!(partial.steam_root, "");
         assert!(!partial.close_to_tray);
+        assert!(!partial.start_minimized);
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -232,6 +239,7 @@ mod tests {
             window_controls: "left".into(),
             ui_scale: 1.5,
             close_to_tray: false,
+            start_minimized: false,
         })
         .unwrap();
         assert!(dir.join("manifold/settings.json").exists());

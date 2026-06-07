@@ -122,7 +122,7 @@ describe("EmptyState", () => {
 
 describe("SettingsSheet", () => {
   const base = {
-    settings: { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0, close_to_tray: false } as Settings,
+    settings: { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0, close_to_tray: false, start_minimized: false } as Settings,
     effectiveRoot: "/home/u/.steam/steam",
     discovered: [{ path: "/home/u/.steam/steam", valid: true }, { path: "/tmp/x", valid: false }],
     systemScale: 1,
@@ -143,12 +143,14 @@ describe("SettingsSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: /Normal window/ }));
     // close-to-tray toggle
     fireEvent.click(screen.getByRole("button", { name: /Hide to tray/ }));
+    // start-minimized toggle
+    fireEvent.click(screen.getByRole("button", { name: /Start in tray/ }));
     // scale step + auto
     fireEvent.click(screen.getByTitle("Larger"));
     expect(p.onPreviewScale).toHaveBeenCalled();
     fireEvent.click(screen.getByTitle("Follow desktop scale"));
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
-    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ window_controls: "left", silent_start: false, close_to_tray: true }));
+    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ window_controls: "left", silent_start: false, close_to_tray: true, start_minimized: true }));
   });
   it("cancels", () => {
     const p = { ...base, onClose: vi.fn() };

@@ -17,7 +17,8 @@
         "height": 800,
         "minWidth": 900,
         "minHeight": 600,
-        "decorations": false
+        "decorations": false,
+        "visible": false
       }
     ],
     "security": {
@@ -27,6 +28,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Utility",
+    "shortDescription": "Bulk-manage Steam launch options and Proton compatibility",
+    "longDescription": "Manifold bulk-manages Steam games' launch options and forced Proton/compatibility tool. Compose launch lines from a catalogue of building blocks, save them as presets, and apply across many games with guarded, backed-up writes.",
+    "homepage": "https://github.com/yasen-pavlov/manifold",
+    "publisher": "Yasen Pavlov",
+    "copyright": "Copyright (c) 2026 Yasen Pavlov",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

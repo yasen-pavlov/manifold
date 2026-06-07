@@ -16,7 +16,7 @@ const TOOLS = [
   { id: "cachyos", name: "proton-cachyos", note: "" },
 ];
 const PRESETS = [{ id: "pre_hdr", name: "Native HDR", desc: "hdr", value: "PROTON_ENABLE_HDR=1 game %command%" }];
-const SETTINGS = { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0, close_to_tray: false };
+const SETTINGS = { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0, close_to_tray: false, start_minimized: false };
 
 let steamRunning = false;
 const games = () => [

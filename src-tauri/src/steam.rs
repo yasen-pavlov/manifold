@@ -667,13 +667,87 @@ pub fn write_compat_tool(changes: Vec<(String, String)>) -> Result<LibraryDto, S
 // Steam process control (so the user can close/reopen Steam to make writes stick)
 // ----------------------------------------------------------------------------
 
+/// Whether `p` is a file we are allowed to execute (any exec bit on Unix; just a
+/// regular file elsewhere, where the exec bit has no meaning).
+fn is_executable_file(p: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::metadata(p)
+            .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+    }
+    #[cfg(not(unix))]
+    {
+        p.is_file()
+    }
+}
+
+/// First directory on `PATH` that holds an executable named `name`.
+fn find_on_path(name: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path).find_map(|dir| {
+        let candidate = dir.join(name);
+        is_executable_file(&candidate).then_some(candidate)
+    })
+}
+
+/// Well-known absolute locations of the Steam launcher, in priority order.
+/// Linux-first; macOS/Windows discovery is future work (see `steam_program`).
+#[cfg(target_os = "linux")]
+fn steam_binary_candidates() -> Vec<PathBuf> {
+    let h = home();
+    vec![
+        PathBuf::from("/usr/bin/steam"),
+        PathBuf::from("/usr/local/bin/steam"),
+        PathBuf::from("/usr/games/steam"), // Debian/Ubuntu
+        h.join(".local/bin/steam"),
+        // Flatpak export wrappers pass their args straight through to the client.
+        PathBuf::from("/var/lib/flatpak/exports/bin/com.valvesoftware.Steam"),
+        h.join(".local/share/flatpak/exports/bin/com.valvesoftware.Steam"),
+    ]
+}
+
+#[cfg(not(target_os = "linux"))]
+fn steam_binary_candidates() -> Vec<PathBuf> {
+    // TODO(cross-platform): macOS (/Applications/Steam.app/Contents/MacOS/steam_osx)
+    // and Windows (Steam.exe resolved from the registry).
+    Vec::new()
+}
+
+/// Resolve the Steam launcher without trusting an inherited `PATH`.
+///
+/// A `.desktop`/GUI launch has a thinner `PATH` than a login shell, and Flatpak
+/// Steam ships no `steam` on `PATH` at all, so process control would silently
+/// fail when Manifold is started from a launcher rather than a terminal. Order:
+/// `PATH` lookup -> known absolute install paths -> bare `steam` (so the original
+/// "not found" error still surfaces if nothing matches).
+fn resolve_steam(candidates: &[PathBuf]) -> PathBuf {
+    if let Some(p) = find_on_path("steam") {
+        return p;
+    }
+    if let Some(p) = candidates.iter().find(|p| is_executable_file(p)) {
+        return p.clone();
+    }
+    PathBuf::from("steam")
+}
+
+fn steam_program() -> PathBuf {
+    resolve_steam(&steam_binary_candidates())
+}
+
+/// A `Command` for the resolved Steam launcher; callers append `-shutdown` / `-silent`.
+fn steam_command() -> Command {
+    Command::new(steam_program())
+}
+
 /// Ask Steam to shut down cleanly (`steam -shutdown`) and wait for the client to exit.
 /// This also closes any running games. Returns a fresh scan once Steam is gone.
 pub fn close_steam() -> Result<LibraryDto, String> {
     if !steam_running() {
         return scan();
     }
-    Command::new("steam")
+    steam_command()
         .arg("-shutdown")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -696,7 +770,7 @@ pub fn start_steam() -> Result<LibraryDto, String> {
     if steam_running() {
         return scan();
     }
-    let mut cmd = Command::new("steam");
+    let mut cmd = steam_command();
     if crate::settings::current().silent_start {
         cmd.arg("-silent");
     }
@@ -950,6 +1024,64 @@ mod tests {
         }
     }
 
+
+    /// Steam-launcher resolution: PATH wins, then absolute candidates, then a bare
+    /// `steam` fallback - and a non-executable hit is ignored. Uses injected
+    /// candidates + a controlled PATH so it doesn't depend on the host's real Steam.
+    #[test]
+    fn resolve_steam_prefers_path_then_candidates_then_bare() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let path_prev = std::env::var_os("PATH");
+
+        let dir = std::env::temp_dir().join(format!("manifold_steambin_{}", unique()));
+        let path_bin = dir.join("path");
+        let abs_bin = dir.join("abs");
+        fs::create_dir_all(&path_bin).unwrap();
+        fs::create_dir_all(&abs_bin).unwrap();
+        std::env::set_var("PATH", &path_bin);
+
+        let candidate = abs_bin.join("steam");
+        let candidates = vec![candidate.clone()];
+
+        let make_exec = |p: &Path| {
+            fs::write(p, "#!/bin/sh\n").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(p, fs::Permissions::from_mode(0o755)).unwrap();
+            }
+        };
+
+        // nothing on PATH, candidate missing -> bare "steam"
+        assert_eq!(resolve_steam(&candidates), PathBuf::from("steam"));
+
+        // candidate present + executable -> resolved to it
+        make_exec(&candidate);
+        assert_eq!(resolve_steam(&candidates), candidate);
+
+        // an executable on PATH wins over the absolute candidate
+        let on_path = path_bin.join("steam");
+        make_exec(&on_path);
+        assert_eq!(resolve_steam(&candidates), on_path);
+
+        // cover the production wiring (PATH currently resolves `steam` -> on_path)
+        assert_eq!(steam_command().get_program(), on_path.as_os_str());
+        assert!(!steam_program().as_os_str().is_empty());
+
+        // a non-executable PATH entry is ignored (unix only - exec bit is meaningful)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&on_path, fs::Permissions::from_mode(0o644)).unwrap();
+            assert_eq!(resolve_steam(&candidates), candidate); // back to the candidate
+        }
+
+        match path_prev {
+            Some(p) => std::env::set_var("PATH", p),
+            None => std::env::remove_var("PATH"),
+        }
+        fs::remove_dir_all(&dir).ok();
+    }
 
     /// With Steam running, a write must be refused AND leave the file byte-for-byte intact.
     #[test]

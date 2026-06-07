@@ -161,6 +161,29 @@ function SteamConfirm({ count, onChoose }: Readonly<SteamConfirmProps>) {
 }
 
 /* ============ Settings sheet ============ */
+interface BoolSegProps {
+  label: string;
+  offLabel: string;
+  onLabel: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  offHint: string;
+  onHint: string;
+}
+/** A two-option (off/on) segmented setting with a value-dependent hint. */
+function BoolSeg({ label, offLabel, onLabel, value, onChange, offHint, onHint }: Readonly<BoolSegProps>) {
+  return (
+    <div className="field">
+      <div className="field-cap">{label}</div>
+      <div className="seg">
+        <button className={value ? '' : 'on'} onClick={() => onChange(false)}>{offLabel}</button>
+        <button className={value ? 'on' : ''} onClick={() => onChange(true)}>{onLabel}</button>
+      </div>
+      <div className="hint">{value ? onHint : offHint}</div>
+    </div>
+  );
+}
+
 interface SettingsSheetProps {
   settings: Settings;
   effectiveRoot: string;
@@ -176,6 +199,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
   const [silent, setSilent] = uS(settings.silent_start !== false);
   const [wc, setWc] = uS<WindowControlsPref>(settings.window_controls || 'auto');
   const [closeToTray, setCloseToTray] = uS(settings.close_to_tray === true);
+  const [startMinimized, setStartMinimized] = uS(settings.start_minimized === true);
   const [scaleAuto, setScaleAuto] = uS(settings.ui_scale <= 0);
   const [manualScale, setManualScale] = uS(settings.ui_scale > 0 ? settings.ui_scale : sys);
   const trimmed = root.trim();
@@ -258,14 +282,20 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
               <b>Hidden</b> removes them (use your compositor, e.g. Hyprland, to manage the window).
             </div>
           </div>
-          <div className="field">
-            <div className="field-cap">Closing the window</div>
-            <div className="seg">
-              <button className={closeToTray ? '' : 'on'} onClick={() => setCloseToTray(false)}>Quit Manifold</button>
-              <button className={closeToTray ? 'on' : ''} onClick={() => setCloseToTray(true)}>Hide to tray</button>
-            </div>
-            <div className="hint">{closeToTray ? 'The close button hides Manifold to the tray; reopen it from the tray icon, or quit from the tray menu.' : 'The close button quits Manifold. The tray icon still shows or hides the window while it runs.'}</div>
-          </div>
+          <BoolSeg
+            label="Closing the window"
+            offLabel="Quit Manifold" onLabel="Hide to tray"
+            value={closeToTray} onChange={setCloseToTray}
+            offHint="The close button quits Manifold. The tray icon still shows or hides the window while it runs."
+            onHint="The close button hides Manifold to the tray; reopen it from the tray icon, or quit from the tray menu."
+          />
+          <BoolSeg
+            label="On launch"
+            offLabel="Show window" onLabel="Start in tray"
+            value={startMinimized} onChange={setStartMinimized}
+            offHint="Manifold opens its window on launch."
+            onHint="Manifold launches hidden in the tray; open it from the tray icon."
+          />
 
           <div className="section-label" style={{ marginTop: 18 }}><Icon name="eye" size={13} />Interface<span className="sl-line" /></div>
           <div className="field">
@@ -288,7 +318,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
         <div className="sheet-foot">
           <div style={{ flex: 1 }} />
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale, close_to_tray: closeToTray })}>
+          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale, close_to_tray: closeToTray, start_minimized: startMinimized })}>
             <Icon name="check" size={14} />Save
           </button>
         </div>

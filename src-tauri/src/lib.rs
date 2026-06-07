@@ -142,6 +142,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             setup_tray(app)?;
+            // The window is configured hidden (visible:false) to avoid a flash;
+            // reveal it now unless the user asked to start minimized in the tray.
+            if !settings::current().start_minimized {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
