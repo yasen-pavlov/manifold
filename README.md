@@ -47,6 +47,8 @@ once**. Every write is guarded, backed up, and atomic.
   and backed up before an atomic write.
 - **Owned-only resolution.** Resolves names for owned-but-not-installed games from Steam's
   app cache, fully offline.
+- **System tray.** Show, hide, or quit from a tray menu, with an optional close-to-tray so the
+  window tucks away instead of quitting.
 
 <div align="center">
 <img src="docs/images/feature-builder.png" alt="The structured launch-options builder with pills, catalogue, and validation" width="820">
@@ -115,7 +117,7 @@ cargo test --manifest-path src-tauri/Cargo.toml     # backend (Rust)
 ## Roadmap
 
 - Real backup restore UI, audit view, and a "which Proton actually ran" column
-- System tray, packaging polish
+- Packaging polish
 - Cross-platform Steam support (Windows/macOS paths and process control)
 - ProtonDB rating badges, preset import/export
 
