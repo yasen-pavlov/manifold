@@ -161,6 +161,29 @@ function SteamConfirm({ count, onChoose }: Readonly<SteamConfirmProps>) {
 }
 
 /* ============ Settings sheet ============ */
+interface BoolSegProps {
+  label: string;
+  offLabel: string;
+  onLabel: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  offHint: string;
+  onHint: string;
+}
+/** A two-option (off/on) segmented setting with a value-dependent hint. */
+function BoolSeg({ label, offLabel, onLabel, value, onChange, offHint, onHint }: Readonly<BoolSegProps>) {
+  return (
+    <div className="field">
+      <div className="field-cap">{label}</div>
+      <div className="seg">
+        <button className={value ? '' : 'on'} onClick={() => onChange(false)}>{offLabel}</button>
+        <button className={value ? 'on' : ''} onClick={() => onChange(true)}>{onLabel}</button>
+      </div>
+      <div className="hint">{value ? onHint : offHint}</div>
+    </div>
+  );
+}
+
 interface SettingsSheetProps {
   settings: Settings;
   effectiveRoot: string;
@@ -259,22 +282,20 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
               <b>Hidden</b> removes them (use your compositor, e.g. Hyprland, to manage the window).
             </div>
           </div>
-          <div className="field">
-            <div className="field-cap">Closing the window</div>
-            <div className="seg">
-              <button className={closeToTray ? '' : 'on'} onClick={() => setCloseToTray(false)}>Quit Manifold</button>
-              <button className={closeToTray ? 'on' : ''} onClick={() => setCloseToTray(true)}>Hide to tray</button>
-            </div>
-            <div className="hint">{closeToTray ? 'The close button hides Manifold to the tray; reopen it from the tray icon, or quit from the tray menu.' : 'The close button quits Manifold. The tray icon still shows or hides the window while it runs.'}</div>
-          </div>
-          <div className="field">
-            <div className="field-cap">On launch</div>
-            <div className="seg">
-              <button className={startMinimized ? '' : 'on'} onClick={() => setStartMinimized(false)}>Show window</button>
-              <button className={startMinimized ? 'on' : ''} onClick={() => setStartMinimized(true)}>Start in tray</button>
-            </div>
-            <div className="hint">{startMinimized ? 'Manifold launches hidden in the tray; open it from the tray icon.' : 'Manifold opens its window on launch.'}</div>
-          </div>
+          <BoolSeg
+            label="Closing the window"
+            offLabel="Quit Manifold" onLabel="Hide to tray"
+            value={closeToTray} onChange={setCloseToTray}
+            offHint="The close button quits Manifold. The tray icon still shows or hides the window while it runs."
+            onHint="The close button hides Manifold to the tray; reopen it from the tray icon, or quit from the tray menu."
+          />
+          <BoolSeg
+            label="On launch"
+            offLabel="Show window" onLabel="Start in tray"
+            value={startMinimized} onChange={setStartMinimized}
+            offHint="Manifold opens its window on launch."
+            onHint="Manifold launches hidden in the tray; open it from the tray icon."
+          />
 
           <div className="section-label" style={{ marginTop: 18 }}><Icon name="eye" size={13} />Interface<span className="sl-line" /></div>
           <div className="field">
