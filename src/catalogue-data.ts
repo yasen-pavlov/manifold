@@ -1,12 +1,16 @@
-// catalogue-data.jsx - the building-block catalogue, compose/parse/validate, seed presets.
+// catalogue-data.ts - the building-block catalogue, compose/parse/validate, seed presets.
 // One unified model: catalogue = building blocks; line = ordered pills; preset = saved line.
 // The persisted preset is a launch STRING (see store.rs); pills are a derived editing view
 // bridged by parseLine (string -> pills) and composeLine (pills -> string).
+import type {
+  Category, CatalogueItem, GamescopeSchema, GamescopeCfg,
+  Pill, TokenPill, Issue, Validation, ValidationLevel,
+} from "./types";
 
 /* ============================================================
    CATEGORIES
    ============================================================ */
-const CATEGORIES = [
+const CATEGORIES: Category[] = [
   { id: 'wrapper', name: 'Wrapper',        icon: 'monitor', accent: true },
   { id: 'proton',  name: 'Proton',         icon: 'cpu' },
   { id: 'dxvk',    name: 'DXVK',           icon: 'zap' },
@@ -18,9 +22,9 @@ const CATEGORIES = [
 
 /* ============================================================
    CATALOGUE - building blocks
-   kinds: wrapper | complex | toggle | choice | input | tool | custom
+   kinds: wrapper | complex | toggle | choice | input | tool
    ============================================================ */
-const CATALOGUE = [
+const CATALOGUE: CatalogueItem[] = [
   /* ---- WRAPPERS (own %command%, mutually exclusive) ---- */
   { id: 'w_native',   cat: 'wrapper', kind: 'wrapper', name: 'Native (Wayland)', head: 'game',
     desc: 'winewayland backend. HDR, native VRR, best alt-tab. No Steam overlay or Input.' },
@@ -69,12 +73,13 @@ const CATALOGUE = [
   { id: 'm_nohdrwsi', cat: 'misc', kind: 'toggle', token: 'DISABLE_HDR_WSI=1', name: 'DISABLE_HDR_WSI', desc: 'Disable HDR WSI (gamescope troubleshooting).' },
 ];
 
-const CAT_BY_ID = Object.fromEntries(CATALOGUE.map((c) => [c.id, c]));
+const CAT_BY_ID: Record<string, CatalogueItem> =
+  Object.fromEntries(CATALOGUE.map((c) => [c.id, c] as const));
 
 /* ============================================================
    GAMESCOPE complex schema (sub-controls)
    ============================================================ */
-const GAMESCOPE_SCHEMA = {
+const GAMESCOPE_SCHEMA: GamescopeSchema = {
   flags: [
     { key: 'W', label: 'Width',  flag: '-W', type: 'number', placeholder: '3840', group: 'output' },
     { key: 'H', label: 'Height', flag: '-H', type: 'number', placeholder: '2160', group: 'output' },
@@ -94,32 +99,48 @@ const GAMESCOPE_SCHEMA = {
     { key: 'DISABLE_HDR_WSI', label: 'DISABLE_HDR_WSI=1' },
   ],
 };
-const GAMESCOPE_DEFAULT = { W: '3840', H: '2160', r: '240', o: '60', f: true, 'adaptive-sync': true, 'hdr-enabled': true, 'hdr-debug-force-output': false, 'force-grab-cursor': false, ENABLE_GAMESCOPE_WSI: true, DXVK_HDR: true, DISABLE_HDR_WSI: false };
+const GAMESCOPE_DEFAULT: GamescopeCfg = { W: '3840', H: '2160', r: '240', o: '60', f: true, 'adaptive-sync': true, 'hdr-enabled': true, 'hdr-debug-force-output': false, 'force-grab-cursor': false, ENABLE_GAMESCOPE_WSI: true, DXVK_HDR: true, DISABLE_HDR_WSI: false };
 
 /* ============================================================
    PILL FACTORY - build a pill instance from a catalogue item
    ============================================================ */
-let _uid = 0;
-const nextUid = () => 'pill' + (++_uid);
-
-function makePill(item, overrides = {}) {
-  if (item?.id && CAT_BY_ID[item.id]) item = { ...CAT_BY_ID[item.id], ...item };
-  const base = { uid: nextUid(), itemId: item.id, kind: item.kind, cat: item.cat, name: item.name };
-  if (item.kind === 'toggle' || item.kind === 'tool') return { ...base, token: item.token, ...overrides };
-  if (item.kind === 'choice') return { ...base, key: item.key, value: item.default, choices: item.choices, ...overrides };
-  if (item.kind === 'input') return { ...base, key: item.key, value: item.default ?? '', inputType: item.inputType, placeholder: item.placeholder, ...overrides };
-  if (item.kind === 'wrapper') return { ...base, head: item.head, ...overrides };
-  if (item.kind === 'complex') return { ...base, cfg: { ...GAMESCOPE_DEFAULT }, ...overrides };
-  return { ...base, ...overrides };
+// A loose input shape: a full CatalogueItem, a bare { id } (kind/cat are then filled by the
+// CAT_BY_ID merge), or a hand-built wrapper stub.
+interface MakePillInput {
+  id?: string;
+  kind?: string;
+  cat?: string;
+  name?: string;
+  token?: string;
+  key?: string;
+  choices?: string[];
+  default?: string;
+  inputType?: string;
+  placeholder?: string;
+  head?: string;
 }
-function makeCustomPill(token) {
+
+let _uid = 0;
+const nextUid = (): string => 'pill' + (++_uid);
+
+function makePill(item: MakePillInput, overrides: Record<string, unknown> = {}): Pill {
+  if (item.id && CAT_BY_ID[item.id]) item = { ...CAT_BY_ID[item.id], ...item };
+  const base = { uid: nextUid(), itemId: item.id ?? '', kind: item.kind, cat: item.cat, name: item.name ?? '' };
+  if (item.kind === 'toggle' || item.kind === 'tool') return { ...base, token: item.token, ...overrides } as Pill;
+  if (item.kind === 'choice') return { ...base, key: item.key, value: item.default, choices: item.choices, ...overrides } as Pill;
+  if (item.kind === 'input') return { ...base, key: item.key, value: item.default ?? '', inputType: item.inputType, placeholder: item.placeholder, ...overrides } as Pill;
+  if (item.kind === 'wrapper') return { ...base, head: item.head, ...overrides } as Pill;
+  if (item.kind === 'complex') return { ...base, cfg: { ...GAMESCOPE_DEFAULT }, ...overrides } as Pill;
+  return { ...base, ...overrides } as Pill;
+}
+function makeCustomPill(token: string): TokenPill {
   return { uid: nextUid(), itemId: 'custom', kind: 'custom', cat: 'custom', name: 'Custom', token };
 }
 
 /* ============================================================
    TOKENISE one pill -> its string fragment (no %command%)
    ============================================================ */
-function pillTokens(p) {
+function pillTokens(p: Pill): string[] {
   switch (p.kind) {
     case 'toggle':
     case 'tool':
@@ -137,25 +158,25 @@ function pillTokens(p) {
       return [];
   }
 }
-function gamescopeTokens(cfg) {
+function gamescopeTokens(cfg: GamescopeCfg): string[] {
   const envs = GAMESCOPE_SCHEMA.envs.filter((e) => cfg[e.key]).map((e) => `${e.key}=1`);
-  const flags = [];
+  const flags: string[] = [];
   GAMESCOPE_SCHEMA.flags.forEach((f) => { if (cfg[f.key] !== '' && cfg[f.key] != null) flags.push(f.flag, String(cfg[f.key])); });
   GAMESCOPE_SCHEMA.toggles.forEach((t) => { if (cfg[t.key]) flags.push(t.flag); });
   return [...envs, 'gamescope', ...flags, '--'];
 }
 
-const isEnvToken = (tok) => /^[A-Z0-9_]+=/.test(tok);
+const isEnvToken = (tok: string): boolean => /^[A-Z0-9_]+=/.test(tok);
 
 /* ============================================================
    COMPOSE - pills -> final string (always valid ordering)
    env vars first, then command-prefix tools, then wrapper head, then %command%
    ============================================================ */
-function composeLine(pills) {
+function composeLine(pills: Pill[]): string {
   const wrapper = pills.find((p) => p.kind === 'wrapper' || p.kind === 'complex');
   const rest = pills.filter((p) => p !== wrapper);
-  const envParts = [];
-  const toolParts = [];
+  const envParts: string[] = [];
+  const toolParts: string[] = [];
   rest.forEach((p) => {
     const toks = pillTokens(p);
     toks.forEach((t) => (isEnvToken(t) ? envParts : toolParts).push(t));
@@ -169,17 +190,17 @@ function composeLine(pills) {
 /* ============================================================
    VALIDATE - non-blocking issues + per-pill flags
    ============================================================ */
-const KNOWN_PATH = new Set(['game', 'game_xwayland', 'game_gamescope', 'gamescope', 'mangohud', 'gamemoderun', 'game-performance']);
-const STALE_TOKENS = {
+const KNOWN_PATH = new Set<string>(['game', 'game_xwayland', 'game_gamescope', 'gamescope', 'mangohud', 'gamemoderun', 'game-performance']);
+const STALE_TOKENS: Record<string, string> = {
   gamescope_proton: 'Legacy wrapper script. Use the Gamescope wrapper instead.',
   gamescope_native: 'Legacy wrapper script. Use Native or Gamescope.',
   game_native: 'Renamed. Use the Native (Wayland) wrapper.',
   hdr_run: 'Deprecated HDR shim. Use PROTON_ENABLE_HDR + DXVK_HDR.',
 };
 
-function validateLine(finalStr, pills) {
-  const issues = [];
-  const flagged = {}; // uid -> {level, msg}
+function validateLine(finalStr: string, pills: Pill[]): Validation {
+  const issues: Issue[] = [];
+  const flagged: Record<string, Issue> = {}; // uid -> {level, msg}
   const tokens = finalStr.trim().split(/\s+/).filter(Boolean);
   const cmdCount = tokens.filter((t) => t === '%command%').length;
 
@@ -187,7 +208,7 @@ function validateLine(finalStr, pills) {
   else if (cmdCount > 1) issues.push({ level: 'error', msg: `${cmdCount}x %command%: it must appear exactly once.` });
 
   // stale / typo'd tokens anywhere
-  const staleHits = [];
+  const staleHits: string[] = [];
   tokens.forEach((t) => { const k = t.replace(/=.*/, ''); if (STALE_TOKENS[t]) staleHits.push(t); else if (STALE_TOKENS[k]) staleHits.push(k); });
   [...new Set(staleHits)].forEach((s) => issues.push({ level: 'warn', msg: `${s}: ${STALE_TOKENS[s]}` }));
 
@@ -200,19 +221,19 @@ function validateLine(finalStr, pills) {
     }
   }
 
-  // per-pill: flag custom pills that are stale, and complex pill if its head missing
+  // per-pill: flag custom pills that are stale, and a wrapper pill whose head is missing
   pills.forEach((p) => {
     const toks = pillTokens(p);
     toks.forEach((t) => {
       const k = t.replace(/=.*/, '');
       if (STALE_TOKENS[t] || STALE_TOKENS[k]) flagged[p.uid] = { level: 'warn', msg: STALE_TOKENS[t] || STALE_TOKENS[k] };
     });
-    if ((p.kind === 'wrapper' || p.kind === 'complex') && p.head && !KNOWN_PATH.has(p.head) && !p.head.includes('gamescope')) {
+    if (p.kind === 'wrapper' && p.head && !KNOWN_PATH.has(p.head) && !p.head.includes('gamescope')) {
       flagged[p.uid] = { level: 'warn', msg: `"${p.head}" not on PATH` };
     }
   });
 
-  let level = 'ok';
+  let level: ValidationLevel = 'ok';
   if (issues.some((i) => i.level === 'error')) level = 'error';
   else if (issues.some((i) => i.level === 'warn')) level = 'warn';
   return { issues, flagged, level, cmdCount };
@@ -223,10 +244,10 @@ function validateLine(finalStr, pills) {
    ============================================================ */
 // A gamescope span (`gamescope ... --`) -> a complex wrapper pill + the remaining
 // (pre-gamescope) head tokens, with the gamescope nested-env tokens stripped.
-function parseGamescopeSpan(before, gi) {
+function parseGamescopeSpan(before: string[], gi: number): { wrapperPill: Pill; head: string[] } {
   const dashIdx = before.indexOf('--', gi);
   const flagToks = before.slice(gi + 1, dashIdx === -1 ? before.length : dashIdx);
-  const cfg = { ...GAMESCOPE_DEFAULT };
+  const cfg: GamescopeCfg = { ...GAMESCOPE_DEFAULT };
   Object.keys(cfg).forEach((k) => { if (typeof cfg[k] === 'boolean') cfg[k] = false; });
   for (let i = 0; i < flagToks.length; i++) {
     const f = flagToks[i];
@@ -242,7 +263,7 @@ function parseGamescopeSpan(before, gi) {
 
 // The wrapper is the last bare (non-env) token before %command%. Unknown wrappers
 // become a raw wrapper pill carrying the literal head (flagged by validation later).
-function parseWrapperSpan(before) {
+function parseWrapperSpan(before: string[]): { wrapperPill: Pill | null; head: string[] } {
   let wIdx = -1;
   for (let i = before.length - 1; i >= 0; i--) {
     if (!isEnvToken(before[i])) { wIdx = i; break; }
@@ -258,7 +279,7 @@ function parseWrapperSpan(before) {
 }
 
 // A single head token -> its catalogue pill (toggle/tool/choice/input) or a custom pill.
-function headTokenToPill(tok) {
+function headTokenToPill(tok: string): Pill {
   const c = CATALOGUE.find((x) => {
     if (x.kind === 'toggle' || x.kind === 'tool') return x.token === tok;
     if (x.kind === 'choice' || x.kind === 'input') return tok.startsWith(x.key + '=');
@@ -269,7 +290,7 @@ function headTokenToPill(tok) {
   return makePill(c);
 }
 
-function parseLine(str) {
+function parseLine(str: string | null | undefined): Pill[] {
   const tokens = (str || '').trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
   const ci = tokens.indexOf('%command%');

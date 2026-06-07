@@ -39,14 +39,14 @@ export default defineConfig(async () => ({
     globals: true,
     passWithNoTests: true,
     setupFiles: ["./vitest.setup.js"],
-    include: ["src/**/*.{test,spec}.{js,jsx}"],
+    include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}"],
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "lcov"],
       reportsDirectory: "./coverage",
       all: true,
-      include: ["src/**/*.{js,jsx}"],
-      exclude: ["src/main.jsx", "**/*.config.*", "src/**/*.{test,spec}.{js,jsx}"],
+      include: ["src/**/*.{js,jsx,ts,tsx}"],
+      exclude: ["src/main.tsx", "src/types.ts", "src/vite-env.d.ts", "**/*.config.*", "src/**/*.{test,spec}.{js,jsx,ts,tsx}"],
     },
   },
 }));

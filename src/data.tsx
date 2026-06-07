@@ -1,6 +1,13 @@
-// data.jsx - mock library + presets + helpers (uses real data from the brief)
+// data.tsx - mock library + helpers (uses real data from the brief)
+import type { CompatTool, Game, GameStatus } from "./types";
 
-const COMPAT_TOOLS = [
+export type WrapperKind = 'none' | 'gamescope' | 'xwayland' | 'native' | 'other';
+export interface LaunchTok {
+  t: 'sp' | 'cmd' | 'env' | 'plain';
+  v: string;
+}
+
+const COMPAT_TOOLS: CompatTool[] = [
   { id: 'default',  name: 'Default',              note: 'No forced tool - Steam decides' },
   { id: 'exp',      name: 'Proton - Experimental', note: 'Bleeding-edge Valve build' },
   { id: 'p90',      name: 'Proton 9.0 (Beta)',     note: 'Stable 9.0 branch' },
@@ -10,11 +17,12 @@ const COMPAT_TOOLS = [
 
 // --- library ---------------------------------------------------------------
 // status: 'installed' | 'owned'  ·  compat: COMPAT_TOOLS id
-function g(name, appid, installed, compat, launch, sizeGB) {
-  return { id: 'app' + appid, name, appid: String(appid), status: installed ? 'installed' : 'owned', compat, launch, sizeGB };
+function g(name: string, appid: number, installed: boolean, compat: string, launch: string, sizeGB: number): Game {
+  const status: GameStatus = installed ? 'installed' : 'owned';
+  return { id: 'app' + appid, name, appid: String(appid), status, compat, launch, sizeGB };
 }
 
-const GAMES = [
+const GAMES: Game[] = [
   g('Elden Ring',                  1245620, true,  'cachyos', 'PROTON_USE_OPTISCALER=1 game %command%', 58.2),
   g('Cyberpunk 2077',              1091500, true,  'cachyos', 'PROTON_DLSS_UPGRADE=1 PROTON_USE_OPTISCALER=1 game %command%', 71.4),
   g("Baldur's Gate 3",            1086940, true,  'p90',     'game %command%', 122.7),
@@ -54,7 +62,7 @@ const GAMES = [
 ];
 
 // --- helpers ---------------------------------------------------------------
-function parseWrapper(launch) {
+function parseWrapper(launch: string | null | undefined): WrapperKind {
   if (!launch?.trim()) return 'none';
   const l = launch.toLowerCase();
   if (l.includes('gamescope')) return 'gamescope';
@@ -65,9 +73,9 @@ function parseWrapper(launch) {
 }
 
 // split a launch line into colored tokens (env=KEY=VAL, cmd=%command%, plain)
-function tokenizeLaunch(launch) {
+function tokenizeLaunch(launch: string): LaunchTok[] {
   if (!launch) return [];
-  return launch.split(/(\s+)/).map((tok) => {
+  return launch.split(/(\s+)/).map((tok): LaunchTok => {
     if (/^\s+$/.test(tok)) return { t: 'sp', v: tok };
     if (tok === '%command%') return { t: 'cmd', v: tok };
     if (tok.includes('=')) return { t: 'env', v: tok };
@@ -75,12 +83,12 @@ function tokenizeLaunch(launch) {
   });
 }
 
-function HiLaunch({ value }) {
+function HiLaunch({ value }: { value: string }) {
   const toks = tokenizeLaunch(value);
   return (
     <>{toks.map((tk, i) => {
       if (tk.t === 'sp') return tk.v;
-      const cls = { cmd: 'cmd', env: 'env' }[tk.t] || '';
+      const cls = tk.t === 'cmd' ? 'cmd' : tk.t === 'env' ? 'env' : '';
       return <span key={`${i}-${tk.v}`} className={cls}>{tk.v}</span>;
     })}</>
   );
@@ -88,11 +96,11 @@ function HiLaunch({ value }) {
 
 const LIBRARY_PATH = '~/.steam/steam';
 
-const compatName = (id) => (COMPAT_TOOLS.find((c) => c.id === id) || COMPAT_TOOLS[0]).name;
+const compatName = (id: string): string => (COMPAT_TOOLS.find((c) => c.id === id) || COMPAT_TOOLS[0]).name;
 
 // Replace the compat-tool catalog in place (preserves the live binding that
 // compatName() and <CompatPicker> read from) once the backend reports real tools.
-function setCompatTools(list) {
+function setCompatTools(list: CompatTool[] | null | undefined): void {
   if (!Array.isArray(list) || list.length === 0) return;
   COMPAT_TOOLS.length = 0;
   list.forEach((t) => COMPAT_TOOLS.push(t));

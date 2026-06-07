@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import {
   Popover,
   CompatPicker,
@@ -10,17 +10,24 @@ import {
   WindowControls,
   Toasts,
   EmptyState,
-} from "./surfaces.jsx";
+} from "./surfaces";
+import type { Game, Settings, Toast } from "./types";
 
 const anchor = { left: 10, top: 0, bottom: 20 };
+const qs = (sel: string): HTMLElement => {
+  const el = document.querySelector<HTMLElement>(sel);
+  if (!el) throw new Error(`element not found: ${sel}`);
+  return el;
+};
+const game = (over: Partial<Game> = {}): Game => ({ id: "g1", name: "G", appid: "1", status: "installed", compat: "default", launch: "", ...over });
 
 describe("WindowControls", () => {
   it("renders mac traffic lights on the left", () => {
     render(<WindowControls side="left" />);
     expect(document.querySelector(".tb-dots")).toBeInTheDocument();
-    fireEvent.click(document.querySelector(".tb-dot.c"));
-    fireEvent.click(document.querySelector(".tb-dot.m"));
-    fireEvent.click(document.querySelector(".tb-dot.x"));
+    fireEvent.click(qs(".tb-dot.c"));
+    fireEvent.click(qs(".tb-dot.m"));
+    fireEvent.click(qs(".tb-dot.x"));
   });
   it("renders win/linux controls on the right", () => {
     render(<WindowControls side="right" />);
@@ -48,12 +55,12 @@ describe("Popover", () => {
 describe("CompatPicker", () => {
   it("lists tools and picks one", () => {
     const onPick = vi.fn();
-    render(<CompatPicker anchor={anchor} targets={[{ compat: "default" }]} onPick={onPick} onClose={vi.fn()} />);
+    render(<CompatPicker anchor={anchor} targets={[game({ compat: "default" })]} onPick={onPick} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText("Proton - Experimental"));
     expect(onPick).toHaveBeenCalled();
   });
   it("flags a mixed selection", () => {
-    render(<CompatPicker anchor={anchor} targets={[{ compat: "default" }, { compat: "exp" }]} onPick={vi.fn()} onClose={vi.fn()} />);
+    render(<CompatPicker anchor={anchor} targets={[game({ compat: "default" }), game({ compat: "exp" })]} onPick={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByText(/mixed/)).toBeInTheDocument();
   });
 });
@@ -61,7 +68,7 @@ describe("CompatPicker", () => {
 describe("RowMenu", () => {
   it("fires each action", () => {
     const onAction = vi.fn();
-    render(<RowMenu anchor={anchor} game={{ name: "Elden Ring", appid: "1", launch: "game %command%" }} onAction={onAction} onClose={vi.fn()} />);
+    render(<RowMenu anchor={anchor} game={game({ name: "Elden Ring", appid: "1", launch: "game %command%" })} onAction={onAction} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText(/Set launch options/));
     fireEvent.click(screen.getByText(/Set compatibility/));
     fireEvent.click(screen.getByText(/Copy launch string/));
@@ -71,7 +78,7 @@ describe("RowMenu", () => {
     expect(onAction).toHaveBeenCalledWith("clear");
   });
   it("disables copy/clear when there is no launch line", () => {
-    render(<RowMenu anchor={anchor} game={{ name: "X", appid: "2", launch: "" }} onAction={vi.fn()} onClose={vi.fn()} />);
+    render(<RowMenu anchor={anchor} game={game({ name: "X", appid: "2", launch: "" })} onAction={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByText(/Copy launch string/).closest("button")).toBeDisabled();
   });
 });
@@ -81,7 +88,7 @@ describe("SteamBanner", () => {
     const onCloseSteam = vi.fn(), onDismiss = vi.fn();
     render(<SteamBanner onCloseSteam={onCloseSteam} busy={false} onDismiss={onDismiss} />);
     fireEvent.click(screen.getByRole("button", { name: /Close Steam/ }));
-    fireEvent.click(document.querySelector(".b-dismiss"));
+    fireEvent.click(qs(".b-dismiss"));
     expect(onCloseSteam).toHaveBeenCalled();
     expect(onDismiss).toHaveBeenCalled();
   });
@@ -107,9 +114,9 @@ describe("SteamConfirm", () => {
 describe("Toasts", () => {
   it("renders, dismisses, and undoes", () => {
     const onDismiss = vi.fn(), onUndo = vi.fn();
-    const toasts = [
+    const toasts: Toast[] = [
       { id: 1, kind: "ok", title: "Saved", sub: "ok" },
-      { id: 2, kind: "err", title: "Failed", undo: { kind: "launch" } },
+      { id: 2, kind: "err", title: "Failed", undo: { kind: "launch", changes: [] } },
     ];
     render(<Toasts toasts={toasts} onDismiss={onDismiss} onUndo={onUndo} />);
     expect(screen.getByText("Saved")).toBeInTheDocument();
@@ -131,7 +138,7 @@ describe("EmptyState", () => {
 
 describe("SettingsSheet", () => {
   const base = {
-    settings: { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0 },
+    settings: { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0 } as Settings,
     effectiveRoot: "/home/u/.steam/steam",
     discovered: [{ path: "/home/u/.steam/steam", valid: true }, { path: "/tmp/x", valid: false }],
     systemScale: 1,

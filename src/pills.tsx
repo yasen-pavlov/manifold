@@ -1,15 +1,25 @@
-// pills.jsx - pill rendering, launch-line zone (drag-reorder + inline editors), preview, validation
-import React, { useState as plS, useRef as plR, useEffect as plE } from "react";
-import { Icon } from "./icons.jsx";
-import { Popover } from "./surfaces.jsx";
-import { GAMESCOPE_SCHEMA, CATALOGUE, makePill, isEnvToken, STALE_TOKENS } from "./catalogue-data.jsx";
+// pills.tsx - pill rendering, launch-line zone (drag-reorder + inline editors), preview, validation
+import { useState as plS, useRef as plR, useEffect as plE } from "react";
+import type {
+  HTMLAttributes, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent,
+  DragEvent as ReactDragEvent,
+} from "react";
+import { Icon } from "./icons";
+import { Popover } from "./surfaces";
+import { GAMESCOPE_SCHEMA, CATALOGUE, makePill, isEnvToken, STALE_TOKENS } from "./catalogue-data";
+import type {
+  Pill, ChoicePill, InputPill, ComplexPill, WrapperPill,
+  GamescopeCfg, Issue, Validation, AnchorRect, CatalogueItem,
+} from "./types";
+
+type ClickHandler = (e: ReactMouseEvent | ReactKeyboardEvent) => void;
 
 // Enter/Space activate a click handler, for elements given role="button".
-const keyActivate = (fn) => (e) => {
+const keyActivate = (fn: (e: ReactKeyboardEvent) => void) => (e: ReactKeyboardEvent) => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); }
 };
 
-function tokenClass(t) {
+function tokenClass(t: string): string {
   if (t === '%command%') return 'cmd';
   if (t === '--') return 'dash';
   if (STALE_TOKENS[t] || STALE_TOKENS[t.replace(/=.*/, '')]) return 'stale';
@@ -19,7 +29,7 @@ function tokenClass(t) {
 }
 
 /* ---------- final-string highlighter ---------- */
-function HiString({ value }) {
+function HiString({ value }: { value: string }) {
   if (!value) return <span className="empty-hint">empty, add a wrapper to begin</span>;
   const toks = value.split(/(\s+)/);
   return (
@@ -31,8 +41,8 @@ function HiString({ value }) {
 }
 
 /* ---------- gamescope summary for the wrapper pill ---------- */
-function gsSummary(cfg) {
-  const bits = [];
+function gsSummary(cfg: GamescopeCfg): string {
+  const bits: string[] = [];
   if (cfg.W && cfg.H) bits.push(`${cfg.W}x${cfg.H}`);
   if (cfg.r) bits.push(`${cfg.r}Hz`);
   if (cfg['hdr-enabled']) bits.push('HDR');
@@ -41,17 +51,22 @@ function gsSummary(cfg) {
 }
 
 /* ---------- a pill's inner body (varies by kind) ---------- */
-function PillBody({ pill, isWrapper, isComplex, editable, onClick }) {
-  const clickProps = editable
+interface PillBodyProps {
+  pill: Pill;
+  editable: boolean;
+  onClick: ClickHandler;
+}
+function PillBody({ pill, editable, onClick }: PillBodyProps) {
+  const clickProps: HTMLAttributes<HTMLSpanElement> = editable
     ? { className: 'pbody clickable', role: 'button', tabIndex: 0, onClick, onKeyDown: keyActivate(onClick) }
     : { className: 'pbody' };
 
-  if (isWrapper) {
+  if (pill.kind === 'wrapper' || pill.kind === 'complex') {
     return (
       <span {...clickProps}>
-        <span className="pw-ico"><Icon name={isComplex ? 'gamepad' : 'monitor'} size={13} /></span>
+        <span className="pw-ico"><Icon name={pill.kind === 'complex' ? 'gamepad' : 'monitor'} size={13} /></span>
         <span className="pkey">{pill.name || 'Raw'}</span>
-        {isComplex && <span className="pw-summary">{gsSummary(pill.cfg)}</span>}
+        {pill.kind === 'complex' && <span className="pw-summary">{gsSummary(pill.cfg)}</span>}
         <span className="pcmd">%command%</span>
         <span className="pchev"><Icon name="chevronDown" size={12} /></span>
       </span>
@@ -85,32 +100,45 @@ function PillBody({ pill, isWrapper, isComplex, editable, onClick }) {
 }
 
 /* a human label for the pill, used for the reorder handle's accessible name */
-function pillLabel(pill) {
+function pillLabel(pill: Pill): string {
   if (pill.kind === 'wrapper' || pill.kind === 'complex') return pill.name || 'wrapper';
   if (pill.kind === 'choice' || pill.kind === 'input') return `${pill.key}=${pill.value}`;
   return pill.token || pill.name || 'option';
 }
 
 /* ---------- single pill ---------- */
-function Pill({ pill, flag, onClick, onRemove, onMove, dnd }) {
+interface DndProps {
+  dragging: boolean;
+  over: boolean;
+  onDragStart: (e: ReactDragEvent) => void;
+  onDragEnter: () => void;
+  onDragEnd: () => void;
+}
+interface PillProps {
+  pill: Pill;
+  flag?: Issue;
+  onClick: ClickHandler;
+  onRemove: () => void;
+  onMove?: (delta: number) => void;
+  dnd?: DndProps;
+}
+function PillView({ pill, flag, onClick, onRemove, onMove, dnd }: PillProps) {
   const isWrapper = pill.kind === 'wrapper' || pill.kind === 'complex';
-  const isComplex = pill.kind === 'complex';
   const editable = pill.kind === 'choice' || pill.kind === 'input' || isWrapper;
   const cls = 'pill cat-' + pill.cat + (isWrapper ? ' is-wrapper' : '') + (flag ? ' invalid' : '') +
     (dnd?.dragging ? ' dragging' : '') + (dnd?.over ? ' drop-target' : '');
 
   // The grip is a real <button> drag handle that also supports keyboard reorder
   // (arrow keys) and removal (Delete) - this is what makes the pill accessible.
-  const onGripKey = (e) => {
+  const onGripKey = (e: ReactKeyboardEvent) => {
     if (e.key === 'ArrowLeft') { e.preventDefault(); onMove?.(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); onMove?.(1); }
     else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onRemove(); }
   };
 
   return (
-    <span
+    <li
       className={cls}
-      role="listitem"
       onDragEnter={dnd?.onDragEnter}
       onDragOver={dnd ? (e) => e.preventDefault() : undefined}
       title={flag?.msg || ''}
@@ -129,15 +157,21 @@ function Pill({ pill, flag, onClick, onRemove, onMove, dnd }) {
         </button>
       )}
       {isWrapper && <span className="pw-lock"><Icon name="lock" size={11} /></span>}
-      <PillBody pill={pill} isWrapper={isWrapper} isComplex={isComplex} editable={editable} onClick={onClick} />
+      <PillBody pill={pill} editable={editable} onClick={onClick} />
       {flag && <span className="pwarn" title={flag.msg}><Icon name="alert" size={12} /></span>}
       <button type="button" className="px" onClick={onRemove} title="Remove" aria-label={`Remove ${pillLabel(pill)}`}><Icon name="x" size={12} /></button>
-    </span>
+    </li>
   );
 }
 
 /* ---------- choice editor popover ---------- */
-function ChoiceEditor({ anchor, pill, onChange, onClose }) {
+interface ChoiceEditorProps {
+  anchor: AnchorRect;
+  pill: ChoicePill;
+  onChange: (v: string) => void;
+  onClose: () => void;
+}
+function ChoiceEditor({ anchor, pill, onChange, onClose }: ChoiceEditorProps) {
   return (
     <Popover anchor={anchor} onClose={onClose} width={220}>
       <div className="editor-pop">
@@ -146,10 +180,10 @@ function ChoiceEditor({ anchor, pill, onChange, onClose }) {
           {pill.choices.map((c) => {
             const pick = () => { onChange(c); onClose(); };
             return (
-              <div key={c} className={'ep-choice' + (pill.value === c ? ' on' : '')} role="button" tabIndex={0} onClick={pick} onKeyDown={keyActivate(pick)}>
+              <button type="button" key={c} className={'ep-choice' + (pill.value === c ? ' on' : '')} onClick={pick}>
                 <span className="epc-check">{pill.value === c ? <Icon name="check" size={13} /> : null}</span>
                 {pill.key}={c}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -159,13 +193,19 @@ function ChoiceEditor({ anchor, pill, onChange, onClose }) {
 }
 
 /* ---------- input editor popover ---------- */
-function InputEditor({ anchor, pill, onChange, onClose }) {
+interface InputEditorProps {
+  anchor: AnchorRect;
+  pill: InputPill;
+  onChange: (v: string) => void;
+  onClose: () => void;
+}
+function InputEditor({ anchor, pill, onChange, onClose }: InputEditorProps) {
   const [v, setV] = plS(pill.value);
-  const ref = plR(null);
+  const ref = plR<HTMLInputElement>(null);
   plE(() => { ref.current?.focus(); ref.current?.select(); }, []);
   const commit = () => { onChange(v); onClose(); };
-  const desc = { number: 'Numeric value', path: 'Path, or empty to clear' }[pill.inputType] || 'Value';
-  const onInputKey = (e) => {
+  const desc = pill.inputType === 'number' ? 'Numeric value' : pill.inputType === 'path' ? 'Path, or empty to clear' : 'Value';
+  const onInputKey = (e: ReactKeyboardEvent) => {
     if (e.key === 'Enter') commit();
     else if (e.key === 'Escape') onClose();
   };
@@ -188,9 +228,15 @@ function InputEditor({ anchor, pill, onChange, onClose }) {
 }
 
 /* ---------- gamescope complex editor ---------- */
-function GamescopeEditor({ anchor, pill, onChange, onClose }) {
-  const [cfg, setCfg] = plS({ ...pill.cfg });
-  const set = (k, v) => setCfg((c) => ({ ...c, [k]: v }));
+interface GamescopeEditorProps {
+  anchor: AnchorRect;
+  pill: ComplexPill;
+  onChange: (cfg: GamescopeCfg) => void;
+  onClose: () => void;
+}
+function GamescopeEditor({ anchor, pill, onChange, onClose }: GamescopeEditorProps) {
+  const [cfg, setCfg] = plS<GamescopeCfg>({ ...pill.cfg });
+  const set = (k: string, v: string | boolean) => setCfg((c) => ({ ...c, [k]: v }));
   const groups = [
     { id: 'output', label: 'Output' },
     { id: 'display', label: 'Display' },
@@ -211,7 +257,7 @@ function GamescopeEditor({ anchor, pill, onChange, onClose }) {
               {GAMESCOPE_SCHEMA.flags.map((f) => (
                 <div className="gs-flag" key={f.key}>
                   <label>{f.flag} {f.label}</label>
-                  <input value={cfg[f.key] ?? ''} placeholder={f.placeholder} inputMode="numeric" onChange={(e) => set(f.key, e.target.value)} />
+                  <input value={String(cfg[f.key] ?? '')} placeholder={f.placeholder} inputMode="numeric" onChange={(e) => set(f.key, e.target.value)} />
                 </div>
               ))}
             </div>
@@ -256,22 +302,29 @@ function GamescopeEditor({ anchor, pill, onChange, onClose }) {
 }
 
 /* ---------- the launch line ---------- */
-function PillLine({ pills, flagged, onChange }) {
-  const [editing, setEditing] = plS(null); // which pill is open for editing, plus its anchor rect
-  const [drag, setDrag] = plS({ from: null, over: null });
+interface PillLineProps {
+  pills: Pill[];
+  flagged: Record<string, Issue>;
+  onChange: (pills: Pill[]) => void;
+}
+function PillLine({ pills, flagged, onChange }: PillLineProps) {
+  const [editing, setEditing] = plS<{ uid: string; anchor: AnchorRect } | null>(null);
+  const [drag, setDrag] = plS<{ from: string | null; over: string | null }>({ from: null, over: null });
 
   const reorderable = pills.filter((p) => p.kind !== 'wrapper' && p.kind !== 'complex');
   const wrapper = pills.find((p) => p.kind === 'wrapper' || p.kind === 'complex');
 
-  const openEditor = (uid, e) => {
-    const r = e.currentTarget.closest('.pill').getBoundingClientRect();
-    setEditing({ uid, anchor: r });
+  const openEditor = (uid: string, e: ReactMouseEvent | ReactKeyboardEvent) => {
+    const el = e.currentTarget.closest('.pill');
+    if (!el) return;
+    setEditing({ uid, anchor: el.getBoundingClientRect() });
   };
-  const removePill = (uid) => onChange(pills.filter((p) => p.uid !== uid));
-  const updatePill = (uid, patch) => onChange(pills.map((p) => (p.uid === uid ? { ...p, ...patch } : p)));
+  const removePill = (uid: string) => onChange(pills.filter((p) => p.uid !== uid));
+  const updatePill = (uid: string, patch: Record<string, unknown>) =>
+    onChange(pills.map((p) => (p.uid === uid ? ({ ...p, ...patch } as Pill) : p)));
 
   // keyboard reorder: move a reorderable pill left/right among its peers
-  const movePill = (uid, delta) => {
+  const movePill = (uid: string, delta: number) => {
     const arr = [...reorderable];
     const idx = arr.findIndex((p) => p.uid === uid);
     const next = idx + delta;
@@ -281,8 +334,8 @@ function PillLine({ pills, flagged, onChange }) {
   };
 
   // drag among reorderable pills
-  const onDragStart = (uid) => (e) => { setDrag({ from: uid, over: null }); e.dataTransfer.effectAllowed = 'move'; };
-  const onDragEnter = (uid) => () => setDrag((d) => (d.from && d.from !== uid ? { ...d, over: uid } : d));
+  const onDragStart = (uid: string) => (e: ReactDragEvent) => { setDrag({ from: uid, over: null }); e.dataTransfer.effectAllowed = 'move'; };
+  const onDragEnter = (uid: string) => () => setDrag((d) => (d.from && d.from !== uid ? { ...d, over: uid } : d));
   const onDragEnd = () => {
     setDrag((d) => {
       if (d.from && d.over && d.from !== d.over) {
@@ -300,7 +353,7 @@ function PillLine({ pills, flagged, onChange }) {
   const editPill = editing ? pills.find((p) => p.uid === editing.uid) : null;
 
   return (
-    <div className={'pill-line' + (drag.from ? ' drag-active' : '')} role="list" aria-label="Launch line">
+    <ul className={'pill-line' + (drag.from ? ' drag-active' : '')} aria-label="Launch line">
       {pills.length === 0 ? (
         <div className="line-empty">
           <div className="le-ico"><Icon name="terminal" size={15} /></div>
@@ -310,7 +363,7 @@ function PillLine({ pills, flagged, onChange }) {
       ) : (
         <>
           {reorderable.map((p) => (
-            <Pill
+            <PillView
               key={p.uid} pill={p} flag={flagged[p.uid]}
               onClick={(e) => openEditor(p.uid, e)}
               onRemove={() => removePill(p.uid)}
@@ -324,33 +377,39 @@ function PillLine({ pills, flagged, onChange }) {
           {wrapper && (
             <>
               {reorderable.length > 0 && <span className="pill-join"><Icon name="chevronRight" size={13} /></span>}
-              <Pill key={wrapper.uid} pill={wrapper} flag={flagged[wrapper.uid]} onClick={(e) => openEditor(wrapper.uid, e)} onRemove={() => removePill(wrapper.uid)} />
+              <PillView key={wrapper.uid} pill={wrapper} flag={flagged[wrapper.uid]} onClick={(e) => openEditor(wrapper.uid, e)} onRemove={() => removePill(wrapper.uid)} />
             </>
           )}
         </>
       )}
 
-      {editPill?.kind === 'choice' && (
+      {editing && editPill?.kind === 'choice' && (
         <ChoiceEditor anchor={editing.anchor} pill={editPill} onClose={() => setEditing(null)} onChange={(v) => updatePill(editPill.uid, { value: v })} />
       )}
-      {editPill?.kind === 'input' && (
+      {editing && editPill?.kind === 'input' && (
         <InputEditor anchor={editing.anchor} pill={editPill} onClose={() => setEditing(null)} onChange={(v) => updatePill(editPill.uid, { value: v })} />
       )}
-      {editPill?.kind === 'complex' && (
+      {editing && editPill?.kind === 'complex' && (
         <GamescopeEditor anchor={editing.anchor} pill={editPill} onClose={() => setEditing(null)} onChange={(cfg) => updatePill(editPill.uid, { cfg })} />
       )}
-      {editPill?.kind === 'wrapper' && (
+      {editing && editPill?.kind === 'wrapper' && (
         <WrapperEditor anchor={editing.anchor} pill={editPill} onClose={() => setEditing(null)} onChange={(item) => {
           const np = makePill(item);
           onChange(pills.map((p) => (p.uid === editPill.uid ? { ...np, uid: editPill.uid } : p)));
         }} />
       )}
-    </div>
+    </ul>
   );
 }
 
 /* ---------- wrapper swap popover (click a non-complex wrapper pill) ---------- */
-function WrapperEditor({ anchor, pill, onChange, onClose }) {
+interface WrapperEditorProps {
+  anchor: AnchorRect;
+  pill: WrapperPill;
+  onChange: (item: CatalogueItem) => void;
+  onClose: () => void;
+}
+function WrapperEditor({ anchor, pill, onChange, onClose }: WrapperEditorProps) {
   const wrappers = CATALOGUE.filter((c) => c.cat === 'wrapper');
   return (
     <Popover anchor={anchor} onClose={onClose} width={260}>
@@ -359,12 +418,13 @@ function WrapperEditor({ anchor, pill, onChange, onClose }) {
         <div className="ep-body">
           {wrappers.map((w) => {
             const pick = () => { onChange(w); onClose(); };
+            const head = 'head' in w ? w.head : '';
             return (
-              <div key={w.id} className={'ep-choice' + (pill.itemId === w.id ? ' on' : '')} role="button" tabIndex={0} onClick={pick} onKeyDown={keyActivate(pick)} style={{ fontFamily: 'var(--sans)' }}>
+              <button type="button" key={w.id} className={'ep-choice' + (pill.itemId === w.id ? ' on' : '')} onClick={pick} style={{ fontFamily: 'var(--sans)' }}>
                 <span className="epc-check">{pill.itemId === w.id ? <Icon name="check" size={13} /> : null}</span>
                 <span style={{ flex: 1 }}>{w.name}</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--tx-faint)' }}>{w.head || 'raw'}</span>
-              </div>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--tx-faint)' }}>{head || 'raw'}</span>
+              </button>
             );
           })}
         </div>
@@ -374,7 +434,15 @@ function WrapperEditor({ anchor, pill, onChange, onClose }) {
 }
 
 /* ---------- preview + validation block ---------- */
-function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onRawChange }) {
+interface PreviewBlockProps {
+  finalStr: string;
+  validation: Validation;
+  rawMode: boolean;
+  onToggleRaw: () => void;
+  rawText: string;
+  onRawChange: (v: string) => void;
+}
+function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onRawChange }: PreviewBlockProps) {
   const [copied, setCopied] = plS(false);
   const copy = () => { navigator.clipboard?.writeText(finalStr); setCopied(true); setTimeout(() => setCopied(false), 1400); };
   const lvl = validation.level;
@@ -414,4 +482,4 @@ function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onR
   );
 }
 
-export { Pill, PillLine, PreviewBlock, HiString, gsSummary };
+export { PillView as Pill, PillLine, PreviewBlock, HiString, gsSummary };
