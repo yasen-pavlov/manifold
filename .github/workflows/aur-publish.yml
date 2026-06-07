@@ -1,0 +1,49 @@
+name: Publish to AUR
+
+# Fires when a GitHub release is published (UI or `gh release` CLI). `released`
+# excludes drafts and pre-releases, so the source tag tarball is public by then.
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.2.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  aur:
+    name: Push manifold-steam to AUR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set pkgver + checksum from the release tag
+        id: prep
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name || github.event.inputs.tag }}"
+          ver="${tag#v}"
+          dir=packaging/aur/manifold-steam
+          url="https://github.com/${{ github.repository }}/archive/refs/tags/${tag}.tar.gz"
+          sha="$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)"
+          sed -i "s/^pkgver=.*/pkgver=${ver}/" "$dir/PKGBUILD"
+          sed -i "s/^pkgrel=.*/pkgrel=1/" "$dir/PKGBUILD"
+          sed -i "s/^sha256sums=.*/sha256sums=('${sha}')/" "$dir/PKGBUILD"
+          echo "ver=${ver}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to the AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.3
+        with:
+          pkgname: manifold-steam
+          pkgbuild: packaging/aur/manifold-steam/PKGBUILD
+          assets: |
+            packaging/aur/manifold-steam/manifold-steam.install
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "manifold-steam ${{ steps.prep.outputs.ver }}"
+          ssh_keyscan_types: rsa,ed25519
