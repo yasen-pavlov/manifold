@@ -181,29 +181,6 @@ li.pill { list-style: none; }
   color: var(--tx-lo);
 }
 
-/* ---------- banner (steam running) ---------- */
-.banner {
-  flex: none;
-  display: flex; align-items: center; gap: 12px;
-  padding: 9px 14px;
-  background: var(--warn-dim);
-  border-bottom: 1px solid var(--warn-line);
-  color: oklch(0.88 0.07 80);
-}
-.banner .b-ico { color: var(--warn); display: grid; place-items: center; }
-.banner .b-txt { font-size: 12.5px; }
-.banner .b-txt b { color: oklch(0.92 0.06 82); font-weight: 600; }
-.banner .b-txt span { color: oklch(0.74 0.05 80); }
-.banner .b-spacer { flex: 1; }
-.banner .b-act {
-  height: 28px; padding: 0 12px; border-radius: var(--r);
-  background: var(--warn); color: oklch(0.20 0.04 80); font-weight: 600;
-  border: 0; cursor: pointer; font-size: 12px;
-}
-.banner .b-act:hover { background: oklch(0.85 0.13 78); }
-.banner .b-dismiss { background: none; border: 0; color: oklch(0.70 0.04 80); cursor: pointer; padding: 4px; display: grid; place-items: center; border-radius: 4px; }
-.banner .b-dismiss:hover { background: var(--warn-dim); }
-
 /* ---------- toolbar (search + filters) ---------- */
 .toolbar {
   flex: none;

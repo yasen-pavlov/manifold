@@ -16,7 +16,7 @@ const TOOLS = [
   { id: "cachyos", name: "proton-cachyos", note: "" },
 ];
 const PRESETS = [{ id: "pre_hdr", name: "Native HDR", desc: "hdr", value: "PROTON_ENABLE_HDR=1 game %command%" }];
-const SETTINGS = { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0 };
+const SETTINGS = { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0, close_to_tray: false };
 
 let steamRunning = false;
 const games = () => [
@@ -147,10 +147,10 @@ describe("App - row menu", () => {
 });
 
 describe("App - Steam running", () => {
-  it("shows the banner and runs the close/apply/reopen flow", async () => {
+  it("shows the footer indicator and runs the close/apply/reopen flow", async () => {
     steamRunning = true;
     await renderApp();
-    expect(screen.getByText(/Steam is running/)).toBeInTheDocument();
+    expect(screen.getByText(/Steam running/)).toBeInTheDocument();
     fireEvent.click(screen.getByText("Elden Ring"));
     fireEvent.click(screen.getByRole("button", { name: /Set launch options…/ }));
     await screen.findByText("Set launch options");

@@ -159,6 +159,7 @@ export interface Settings {
   silent_start: boolean;
   window_controls: WindowControlsPref;
   ui_scale: number;
+  close_to_tray: boolean;
 }
 
 /* ============================================================

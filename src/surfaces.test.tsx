@@ -4,7 +4,6 @@ import {
   Popover,
   CompatPicker,
   RowMenu,
-  SteamBanner,
   SteamConfirm,
   SettingsSheet,
   WindowControls,
@@ -83,21 +82,6 @@ describe("RowMenu", () => {
   });
 });
 
-describe("SteamBanner", () => {
-  it("renders and wires close + dismiss", () => {
-    const onCloseSteam = vi.fn(), onDismiss = vi.fn();
-    render(<SteamBanner onCloseSteam={onCloseSteam} busy={false} onDismiss={onDismiss} />);
-    fireEvent.click(screen.getByRole("button", { name: /Close Steam/ }));
-    fireEvent.click(qs(".b-dismiss"));
-    expect(onCloseSteam).toHaveBeenCalled();
-    expect(onDismiss).toHaveBeenCalled();
-  });
-  it("shows a busy state", () => {
-    render(<SteamBanner onCloseSteam={vi.fn()} busy onDismiss={vi.fn()} />);
-    expect(screen.getByText(/Closing/)).toBeInTheDocument();
-  });
-});
-
 describe("SteamConfirm", () => {
   it("offers cancel / close+apply / close+apply+reopen", () => {
     const onChoose = vi.fn();
@@ -138,7 +122,7 @@ describe("EmptyState", () => {
 
 describe("SettingsSheet", () => {
   const base = {
-    settings: { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0 } as Settings,
+    settings: { steam_root: "", silent_start: true, window_controls: "auto", ui_scale: 0, close_to_tray: false } as Settings,
     effectiveRoot: "/home/u/.steam/steam",
     discovered: [{ path: "/home/u/.steam/steam", valid: true }, { path: "/tmp/x", valid: false }],
     systemScale: 1,
@@ -157,12 +141,14 @@ describe("SettingsSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Left$/ }));
     // silent toggle
     fireEvent.click(screen.getByRole("button", { name: /Normal window/ }));
+    // close-to-tray toggle
+    fireEvent.click(screen.getByRole("button", { name: /Hide to tray/ }));
     // scale step + auto
     fireEvent.click(screen.getByTitle("Larger"));
     expect(p.onPreviewScale).toHaveBeenCalled();
     fireEvent.click(screen.getByTitle("Follow desktop scale"));
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
-    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ window_controls: "left", silent_start: false }));
+    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ window_controls: "left", silent_start: false, close_to_tray: true }));
   });
   it("cancels", () => {
     const p = { ...base, onClose: vi.fn() };
