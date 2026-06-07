@@ -91,11 +91,10 @@ fn hide_main_window(app: &tauri::AppHandle) {
 
 /// Build the system-tray icon with a Show / Hide / Quit menu.
 ///
-/// The menu is the interaction surface on purpose: on Linux the libayatana
-/// appindicator backend does not deliver icon click events, so click-to-toggle
-/// would silently do nothing there. A menu works on every platform. We still
-/// wire `on_tray_icon_event` so a left-click shows the window where the platform
-/// does deliver it (macOS / Windows).
+/// Left-click is a shortcut for "Show Manifold"; the menu opens on right-click.
+/// On Linux the libayatana appindicator backend does not deliver icon click
+/// events, so there the menu (which lists Show / Hide / Quit) is the only
+/// interaction surface; the menu works on every platform.
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let show_i = MenuItem::with_id(app, "show", "Show Manifold", true, None::<&str>)?;
     let hide_i = MenuItem::with_id(app, "hide", "Hide to tray", true, None::<&str>)?;
@@ -109,6 +108,10 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .icon(icon)
         .tooltip("Manifold")
         .menu(&menu)
+        // Left-click is a shortcut for "Show Manifold" (open if hidden, focus if
+        // already open); the menu opens on right-click. Where the platform does not
+        // deliver click events (Linux appindicator) the menu is the only surface.
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
             "hide" => hide_main_window(app),
