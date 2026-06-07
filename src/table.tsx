@@ -8,7 +8,7 @@ import type {
 } from "./types";
 
 /* ---------------- Checkbox ---------------- */
-function Check({ state, onClick }: { state: CheckState; onClick: (e: ReactMouseEvent) => void }) {
+function Check({ state, onClick }: Readonly<{ state: CheckState; onClick: (e: ReactMouseEvent) => void }>) {
   let cls = 'cbx';
   let icon = null;
   if (state === 'dash') {
@@ -34,7 +34,7 @@ interface ToolbarProps {
   counts: Counts;
   onOpenCmdk: () => void;
 }
-function Toolbar({ search, setSearch, filters, toggleFilter, counts, onOpenCmdk }: ToolbarProps) {
+function Toolbar({ search, setSearch, filters, toggleFilter, counts, onOpenCmdk }: Readonly<ToolbarProps>) {
   const FILTERS: Array<{ id: FilterKey; label: string; ct: number }> = [
     { id: 'installed', label: 'Installed', ct: counts.installed },
     { id: 'owned', label: 'Owned-only', ct: counts.owned },
@@ -85,21 +85,21 @@ const COLUMNS: Column[] = [
   { id: 'launch', label: 'Launch options', cls: 'col-launch', sortable: false },
 ];
 
-function StatusBadge({ status }: { status: GameStatus }) {
+function StatusBadge({ status }: Readonly<{ status: GameStatus }>) {
   if (status === 'installed') {
     return <span className="badge installed"><span className="dot" />Installed</span>;
   }
   return <span className="badge owned"><span className="dot" />Owned-only</span>;
 }
 
-function WrapTag({ launch }: { launch: string }) {
+function WrapTag({ launch }: Readonly<{ launch: string }>) {
   const w = parseWrapper(launch);
   if (w === 'none') return null;
   const labels: Record<string, string> = { gamescope: 'gamescope', xwayland: 'xwayland', native: 'native', other: 'env' };
   return <span className={'wrap-tag ' + w}>{labels[w]}</span>;
 }
 
-function LaunchCell({ value }: { value: string }) {
+function LaunchCell({ value }: Readonly<{ value: string }>) {
   if (!value) return <span className="launch-empty">no launch options</span>;
   return (
     <div className="launch-cell">
@@ -119,7 +119,7 @@ interface GameRowProps {
   onLaunchClick: (g: Game) => void;
   onTip: (e: ReactMouseEvent | null, value?: string) => void;
 }
-function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchClick, onTip }: GameRowProps) {
+function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchClick, onTip }: Readonly<GameRowProps>) {
   return (
     <tr className={selected ? 'sel' : ''} onClick={() => onToggle(game.id)}>
       <td className="col-check">
@@ -173,7 +173,7 @@ interface GamesTableProps {
   onRowMenu: (e: ReactMouseEvent, g: Game) => void;
   onLaunchClick: (g: Game) => void;
 }
-function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, headState, onCompatClick, onRowMenu, onLaunchClick }: GamesTableProps) {
+function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, headState, onCompatClick, onRowMenu, onLaunchClick }: Readonly<GamesTableProps>) {
   const [tip, setTip] = useState<TipState>(null);
   const onTip = (e: ReactMouseEvent | null, value?: string) => {
     if (!e || value === undefined) { setTip(null); return; }
@@ -248,7 +248,7 @@ interface BulkBarProps {
   onClear: () => void;
   disabled: boolean;
 }
-function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, onClearLaunch, onClear, disabled }: BulkBarProps) {
+function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, onClearLaunch, onClear, disabled }: Readonly<BulkBarProps>) {
   return (
     <div className="bulkbar">
       <div className="bulk-count">
@@ -285,7 +285,7 @@ interface FooterProps {
   onCloseSteam: () => void;
   onStartSteam: () => void;
 }
-function Footer({ total, installed, shown, selected, steamRunning, steamBusy, onCloseSteam, onStartSteam }: FooterProps) {
+function Footer({ total, installed, shown, selected, steamRunning, steamBusy, onCloseSteam, onStartSteam }: Readonly<FooterProps>) {
   const steamAction = steamRunning ? onCloseSteam : onStartSteam;
   const onClick = steamBusy ? undefined : steamAction;
   const steamLabel = steamRunning ? 'Close Steam' : 'Start Steam';

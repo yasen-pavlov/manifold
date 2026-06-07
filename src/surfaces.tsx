@@ -15,7 +15,7 @@ export type SteamChoice = 'cancel' | 'closed' | 'reopen';
 function appWindow(): ReturnType<typeof getCurrentWindow> | null {
   try { return getCurrentWindow(); } catch { return null; }
 }
-function WindowControls({ side }: { side: 'left' | 'right' }) {
+function WindowControls({ side }: Readonly<{ side: 'left' | 'right' }>) {
   const min = () => appWindow()?.minimize().catch(() => {});
   const max = () => appWindow()?.toggleMaximize().catch(() => {});
   const close = () => appWindow()?.close().catch(() => {});
@@ -40,7 +40,7 @@ function WindowControls({ side }: { side: 'left' | 'right' }) {
 }
 
 /* ============ Modal scrim (native <button>; click or Enter to close) ============ */
-function Scrim({ onClose }: { onClose: () => void }) {
+function Scrim({ onClose }: Readonly<{ onClose: () => void }>) {
   return (
     <button type="button" className="scrim" aria-label="Close" onClick={onClose} />
   );
@@ -53,7 +53,7 @@ interface PopoverProps {
   children: ReactNode;
   width?: number;
 }
-function Popover({ anchor, onClose, children, width }: PopoverProps) {
+function Popover({ anchor, onClose, children, width }: Readonly<PopoverProps>) {
   const ref = uR<HTMLDivElement>(null);
   uE(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -81,7 +81,7 @@ interface CompatPickerProps {
   onPick: (id: string) => void;
   onClose: () => void;
 }
-function CompatPicker({ anchor, targets, onPick, onClose }: CompatPickerProps) {
+function CompatPicker({ anchor, targets, onPick, onClose }: Readonly<CompatPickerProps>) {
   const vals = uM(() => new Set(targets.map((t) => t.compat)), [targets]);
   const mixed = vals.size > 1;
   const current = mixed ? null : [...vals][0];
@@ -105,7 +105,7 @@ interface RowMenuProps {
   onAction: (action: RowAction) => void;
   onClose: () => void;
 }
-function RowMenu({ anchor, game, onAction, onClose }: RowMenuProps) {
+function RowMenu({ anchor, game, onAction, onClose }: Readonly<RowMenuProps>) {
   return (
     <Popover anchor={anchor} onClose={onClose} width={216}>
       <div className="pop-label" style={{ fontFamily: 'var(--mono)', textTransform: 'none', color: 'var(--tx-lo)' }}>{game.name}</div>
@@ -126,7 +126,7 @@ interface SteamBannerProps {
   busy: boolean;
   onDismiss: () => void;
 }
-function SteamBanner({ onCloseSteam, busy, onDismiss }: SteamBannerProps) {
+function SteamBanner({ onCloseSteam, busy, onDismiss }: Readonly<SteamBannerProps>) {
   return (
     <div className="banner">
       <span className="b-ico"><Icon name="alert" size={17} /></span>
@@ -148,7 +148,7 @@ interface SteamConfirmProps {
   count: number;
   onChoose: (choice: SteamChoice) => void;
 }
-function SteamConfirm({ count, onChoose }: SteamConfirmProps) {
+function SteamConfirm({ count, onChoose }: Readonly<SteamConfirmProps>) {
   return (
     <dialog className="modal-host" open aria-label="Steam is running">
       <Scrim onClose={() => onChoose('cancel')} />
@@ -193,7 +193,7 @@ interface SettingsSheetProps {
   onSave: (next: Settings) => void;
   onClose: () => void;
 }
-function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPreviewScale, onSave, onClose }: SettingsSheetProps) {
+function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPreviewScale, onSave, onClose }: Readonly<SettingsSheetProps>) {
   const sys = typeof systemScale === 'number' && systemScale > 0 ? systemScale : 1;
   const [root, setRoot] = uS(settings.steam_root || '');
   const [silent, setSilent] = uS(settings.silent_start !== false);
@@ -317,7 +317,7 @@ interface ToastsProps {
   onDismiss: (id: number) => void;
   onUndo: (t: Toast) => void;
 }
-function Toasts({ toasts, onDismiss, onUndo }: ToastsProps) {
+function Toasts({ toasts, onDismiss, onUndo }: Readonly<ToastsProps>) {
   return (
     <div className="toasts">
       {toasts.map((t) => (
@@ -336,7 +336,7 @@ function Toasts({ toasts, onDismiss, onUndo }: ToastsProps) {
 }
 
 /* ============ Empty / first run ============ */
-function EmptyState({ onRetry }: { onRetry: () => void }) {
+function EmptyState({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
     <div className="empty">
       <div className="e-mark"><Icon name="folder" size={26} /></div>

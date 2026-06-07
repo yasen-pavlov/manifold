@@ -19,7 +19,7 @@ function miniClass(t: string): string {
 }
 
 /* mono mini-highlighter for compact preset lines */
-function MiniLine({ value }: { value: string }) {
+function MiniLine({ value }: Readonly<{ value: string }>) {
   const toks = (value || '').split(/(\s+)/);
   return <>{toks.map((t, i) => (/^\s+$/.test(t) ? t : <span key={`${i}-${t}`} className={miniClass(t)}>{t}</span>))}</>;
 }
@@ -32,7 +32,7 @@ function presetStatusHint(canSave: boolean, name: string, hasError: boolean): st
 }
 
 /* "Start from preset" dropdown list */
-function StartFromPreset({ presets, onPick }: { presets: Preset[]; onPick: (p: Preset) => void }) {
+function StartFromPreset({ presets, onPick }: Readonly<{ presets: Preset[]; onPick: (p: Preset) => void }>) {
   return (
     <div className="mixed-list" style={{ marginTop: 0, marginBottom: 14, borderColor: 'var(--acc-line)' }}>
       {presets.length === 0 && <div className="mixed-row"><span className="mr-str" style={{ color: 'var(--tx-faint)' }}>No saved presets yet.</span></div>}
@@ -49,7 +49,7 @@ function StartFromPreset({ presets, onPick }: { presets: Preset[]; onPick: (p: P
 }
 
 /* mixed-selection detail (apply context, when selected games differ) */
-function MixedLines({ mixedLines, targetCount }: { mixedLines: MixedLine[]; targetCount: number }) {
+function MixedLines({ mixedLines, targetCount }: Readonly<{ mixedLines: MixedLine[]; targetCount: number }>) {
   return (
     <div style={{ marginTop: 16 }}>
       <div className="canvas-block-label"><Icon name="alert" size={13} style={{ color: 'var(--warn)' }} />Current lines differ<span className="cbl-line" /></div>
@@ -84,7 +84,7 @@ interface BuilderFooterProps {
   onApply: (val: string) => void;
   onStartFromPreset?: (kind: string, pills: Pill[]) => void;
 }
-function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canApply, hasError, targetCount, pills, onClose, onSavePreset, onApply, onStartFromPreset }: BuilderFooterProps) {
+function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canApply, hasError, targetCount, pills, onClose, onSavePreset, onApply, onStartFromPreset }: Readonly<BuilderFooterProps>) {
   if (isPreset) {
     return (
       <div className="builder-foot">
@@ -123,7 +123,7 @@ interface BuilderSurfaceProps {
   onStartFromPreset?: (kind: string, pills: Pill[]) => void;
   mixedLines?: MixedLine[];
 }
-function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onStartFromPreset, mixedLines }: BuilderSurfaceProps) {
+function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onStartFromPreset, mixedLines }: Readonly<BuilderSurfaceProps>) {
   const isPreset = context.mode === 'preset';
 
   // initial pills
@@ -285,7 +285,7 @@ interface PresetsListProps {
   hasSelection: boolean;
   selCount: number;
 }
-function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, hasSelection, selCount }: PresetsListProps) {
+function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, hasSelection, selCount }: Readonly<PresetsListProps>) {
   return (
     <div className="page">
       <div className="page-inner" style={{ maxWidth: 880 }}>

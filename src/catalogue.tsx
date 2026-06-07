@@ -16,11 +16,12 @@ interface CatalogueRowProps {
   state: ItemState;
   onAdd: (item: CatalogueItem) => void;
 }
-function CatalogueRow({ item, state, onAdd }: CatalogueRowProps) {
+function CatalogueRow({ item, state, onAdd }: Readonly<CatalogueRowProps>) {
   const isWrapper = item.kind === 'wrapper' || item.kind === 'complex';
   const monoName = item.kind === 'toggle' || item.kind === 'choice' || item.kind === 'input' || item.kind === 'tool';
   const added = state === 'added' || state === 'current';
-  const addCls = state === 'current' ? ' is-current' : state === 'added' ? ' is-added' : '';
+  const addClsMap: Record<string, string> = { current: ' is-current', added: ' is-added' };
+  const addCls = state ? addClsMap[state] : '';
   let title = 'Add';
   if (isWrapper) title = 'Set wrapper';
   else if (added) title = 'In line';
@@ -46,7 +47,7 @@ interface CatalogueProps {
   onAdd: (item: CatalogueItem) => void;
   onAddCustom: (token: string) => void;
 }
-function Catalogue({ pills, onAdd, onAddCustom }: CatalogueProps) {
+function Catalogue({ pills, onAdd, onAddCustom }: Readonly<CatalogueProps>) {
   const [q, setQ] = cgS('');
   const [cat, setCat] = cgS('all');
   const [customVal, setCustomVal] = cgS('');
