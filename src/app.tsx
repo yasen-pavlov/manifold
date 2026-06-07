@@ -462,7 +462,7 @@ function App() {
       <div className="titlebar" data-tauri-drag-region>
         {controlsSide === 'left' && <WindowControls side="left" />}
         <div className="tb-brand" data-tauri-drag-region>
-          <div className="tb-mark"><i /></div>
+          <img className="tb-mark" src="/manifold.svg" alt="Manifold" width={18} height={18} draggable={false} data-tauri-drag-region />
           <div className="tb-title" data-tauri-drag-region>Manifold <b>· steam launch &amp; compat manager</b></div>
         </div>
         <div className="tb-spacer" data-tauri-drag-region />
