@@ -398,7 +398,10 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
 /* ---------- sheet / overlay ---------- */
 /* native <dialog> wrapper: contributes the dialog role/semantics without its own
    box, so the inner .scrim + .sheet/.builder keep their exact layout. */
-dialog.modal-host { display: contents; }
+/* display:contents removes the dialog box but still passes `color` to children;
+   set it so the native <dialog> UA default (color: CanvasText -> black, since we
+   declare no light/dark color-scheme) does not leak into otherwise-unstyled text. */
+dialog.modal-host { display: contents; color: var(--tx-hi); }
 
 .scrim {
   position: absolute; inset: 0; z-index: 40;

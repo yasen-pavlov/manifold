@@ -104,7 +104,11 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .default_window_icon()
         .cloned()
         .ok_or("no default window icon to use for the tray")?;
-    TrayIconBuilder::with_id("main")
+    // The tray id is surfaced verbatim in the Linux hover text as
+    // "tray-icon tray app <id>" (hardcoded by the tray-icon crate; its Linux
+    // set_tooltip is a no-op, so .tooltip() below only takes effect on macOS/Windows).
+    // Using "Manifold" as the id at least puts the app name in that tooltip.
+    TrayIconBuilder::with_id("Manifold")
         .icon(icon)
         .tooltip("Manifold")
         .menu(&menu)
