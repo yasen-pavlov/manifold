@@ -61,7 +61,7 @@ interface IconProps {
   style?: CSSProperties;
 }
 
-function Icon({ name, size = 16, stroke = 1.75, className = '', style = {} }: IconProps) {
+function Icon({ name, size = 16, stroke = 1.75, className = '', style = {} }: Readonly<IconProps>) {
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24"

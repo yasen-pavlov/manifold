@@ -29,7 +29,7 @@ function tokenClass(t: string): string {
 }
 
 /* ---------- final-string highlighter ---------- */
-function HiString({ value }: { value: string }) {
+function HiString({ value }: Readonly<{ value: string }>) {
   if (!value) return <span className="empty-hint">empty, add a wrapper to begin</span>;
   const toks = value.split(/(\s+)/);
   return (
@@ -56,7 +56,7 @@ interface PillBodyProps {
   editable: boolean;
   onClick: ClickHandler;
 }
-function PillBody({ pill, editable, onClick }: PillBodyProps) {
+function PillBody({ pill, editable, onClick }: Readonly<PillBodyProps>) {
   const clickProps: HTMLAttributes<HTMLSpanElement> = editable
     ? { className: 'pbody clickable', role: 'button', tabIndex: 0, onClick, onKeyDown: keyActivate(onClick) }
     : { className: 'pbody' };
@@ -122,7 +122,7 @@ interface PillProps {
   onMove?: (delta: number) => void;
   dnd?: DndProps;
 }
-function PillView({ pill, flag, onClick, onRemove, onMove, dnd }: PillProps) {
+function PillView({ pill, flag, onClick, onRemove, onMove, dnd }: Readonly<PillProps>) {
   const isWrapper = pill.kind === 'wrapper' || pill.kind === 'complex';
   const editable = pill.kind === 'choice' || pill.kind === 'input' || isWrapper;
   const cls = 'pill cat-' + pill.cat + (isWrapper ? ' is-wrapper' : '') + (flag ? ' invalid' : '') +
@@ -171,7 +171,7 @@ interface ChoiceEditorProps {
   onChange: (v: string) => void;
   onClose: () => void;
 }
-function ChoiceEditor({ anchor, pill, onChange, onClose }: ChoiceEditorProps) {
+function ChoiceEditor({ anchor, pill, onChange, onClose }: Readonly<ChoiceEditorProps>) {
   return (
     <Popover anchor={anchor} onClose={onClose} width={220}>
       <div className="editor-pop">
@@ -199,12 +199,13 @@ interface InputEditorProps {
   onChange: (v: string) => void;
   onClose: () => void;
 }
-function InputEditor({ anchor, pill, onChange, onClose }: InputEditorProps) {
+function InputEditor({ anchor, pill, onChange, onClose }: Readonly<InputEditorProps>) {
   const [v, setV] = plS(pill.value);
   const ref = plR<HTMLInputElement>(null);
   plE(() => { ref.current?.focus(); ref.current?.select(); }, []);
   const commit = () => { onChange(v); onClose(); };
-  const desc = pill.inputType === 'number' ? 'Numeric value' : pill.inputType === 'path' ? 'Path, or empty to clear' : 'Value';
+  const descMap: Record<string, string> = { number: 'Numeric value', path: 'Path, or empty to clear' };
+  const desc = descMap[pill.inputType] || 'Value';
   const onInputKey = (e: ReactKeyboardEvent) => {
     if (e.key === 'Enter') commit();
     else if (e.key === 'Escape') onClose();
@@ -234,7 +235,7 @@ interface GamescopeEditorProps {
   onChange: (cfg: GamescopeCfg) => void;
   onClose: () => void;
 }
-function GamescopeEditor({ anchor, pill, onChange, onClose }: GamescopeEditorProps) {
+function GamescopeEditor({ anchor, pill, onChange, onClose }: Readonly<GamescopeEditorProps>) {
   const [cfg, setCfg] = plS<GamescopeCfg>({ ...pill.cfg });
   const set = (k: string, v: string | boolean) => setCfg((c) => ({ ...c, [k]: v }));
   const groups = [
@@ -307,7 +308,7 @@ interface PillLineProps {
   flagged: Record<string, Issue>;
   onChange: (pills: Pill[]) => void;
 }
-function PillLine({ pills, flagged, onChange }: PillLineProps) {
+function PillLine({ pills, flagged, onChange }: Readonly<PillLineProps>) {
   const [editing, setEditing] = plS<{ uid: string; anchor: AnchorRect } | null>(null);
   const [drag, setDrag] = plS<{ from: string | null; over: string | null }>({ from: null, over: null });
 
@@ -321,7 +322,7 @@ function PillLine({ pills, flagged, onChange }: PillLineProps) {
   };
   const removePill = (uid: string) => onChange(pills.filter((p) => p.uid !== uid));
   const updatePill = (uid: string, patch: Record<string, unknown>) =>
-    onChange(pills.map((p) => (p.uid === uid ? ({ ...p, ...patch } as Pill) : p)));
+    onChange(pills.map((p) => (p.uid === uid ? { ...p, ...patch } : p)));
 
   // keyboard reorder: move a reorderable pill left/right among its peers
   const movePill = (uid: string, delta: number) => {
@@ -409,7 +410,7 @@ interface WrapperEditorProps {
   onChange: (item: CatalogueItem) => void;
   onClose: () => void;
 }
-function WrapperEditor({ anchor, pill, onChange, onClose }: WrapperEditorProps) {
+function WrapperEditor({ anchor, pill, onChange, onClose }: Readonly<WrapperEditorProps>) {
   const wrappers = CATALOGUE.filter((c) => c.cat === 'wrapper');
   return (
     <Popover anchor={anchor} onClose={onClose} width={260}>
@@ -442,7 +443,7 @@ interface PreviewBlockProps {
   rawText: string;
   onRawChange: (v: string) => void;
 }
-function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onRawChange }: PreviewBlockProps) {
+function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onRawChange }: Readonly<PreviewBlockProps>) {
   const [copied, setCopied] = plS(false);
   const copy = () => { navigator.clipboard?.writeText(finalStr); setCopied(true); setTimeout(() => setCopied(false), 1400); };
   const lvl = validation.level;

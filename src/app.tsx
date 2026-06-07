@@ -19,7 +19,7 @@ type OSKind = 'mac' | 'windows' | 'linux';
 type ControlsSide = 'left' | 'right' | 'none';
 
 function detectOS(): OSKind {
-  const p = typeof navigator !== 'undefined' ? (navigator.platform || '') : '';
+  const p = typeof navigator === 'undefined' ? '' : (navigator.platform || '');
   if (/mac/i.test(p)) return 'mac';
   if (/win/i.test(p)) return 'windows';
   return 'linux';
@@ -138,7 +138,7 @@ function App() {
   const targets = aM(() => games.filter((g) => selected.has(g.id)), [games, selected]);
 
   /* ---------- selection ---------- */
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n; });
   const toggleAll = () => setSelected((s) => {
     const n = new Set(s);
     if (allSelected) filteredIds.forEach((id) => n.delete(id));

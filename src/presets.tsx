@@ -13,7 +13,7 @@ const BACKUPS: Backup[] = [
   { id: 'b4', when: '2026-06-04 19:02:17', games: 1,  note: 'Set launch options · Native HDR' },
   { id: 'b5', when: '2026-06-03 09:15:44', games: 36, note: 'Initial snapshot on first scan' },
 ];
-function BackupsView({ onRestore }: { onRestore: (b: Backup) => void }) {
+function BackupsView({ onRestore }: Readonly<{ onRestore: (b: Backup) => void }>) {
   return (
     <div className="page">
       <div className="page-inner" style={{ maxWidth: 820 }}>
@@ -44,7 +44,7 @@ function BackupsView({ onRestore }: { onRestore: (b: Backup) => void }) {
 /* ============ Command palette ============ */
 type IndexedCommand = Command & { _i: number };
 
-function CommandPalette({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
+function CommandPalette({ commands, onClose }: Readonly<{ commands: Command[]; onClose: () => void }>) {
   const [q, setQ] = pS('');
   const [active, setActive] = pS(0);
   const inputRef = pR<HTMLInputElement>(null);

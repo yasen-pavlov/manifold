@@ -83,12 +83,12 @@ function tokenizeLaunch(launch: string): LaunchTok[] {
   });
 }
 
-function HiLaunch({ value }: { value: string }) {
+function HiLaunch({ value }: Readonly<{ value: string }>) {
   const toks = tokenizeLaunch(value);
   return (
     <>{toks.map((tk, i) => {
       if (tk.t === 'sp') return tk.v;
-      const cls = tk.t === 'cmd' ? 'cmd' : tk.t === 'env' ? 'env' : '';
+      const cls = tk.t === 'cmd' || tk.t === 'env' ? tk.t : '';
       return <span key={`${i}-${tk.v}`} className={cls}>{tk.v}</span>;
     })}</>
   );
