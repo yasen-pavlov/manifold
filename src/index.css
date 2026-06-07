@@ -133,11 +133,8 @@ li.pill { list-style: none; }
 .tb-brand { display: flex; align-items: center; gap: 8px; margin-left: 4px; }
 .tb-mark {
   width: 18px; height: 18px; border-radius: 4px;
-  background: var(--acc-dim);
-  border: 1px solid var(--acc-line);
-  display: grid; place-items: center;
+  display: block; flex: none;
 }
-.tb-mark i { width: 7px; height: 7px; border-radius: 1px; background: var(--acc); display: block; transform: rotate(45deg); }
 .tb-title { font-size: 12.5px; font-weight: 600; letter-spacing: 0.2px; color: var(--tx-hi); white-space: nowrap; }
 .tb-title b { color: var(--tx-lo); font-weight: 500; }
 
