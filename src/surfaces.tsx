@@ -1,14 +1,21 @@
-// surfaces.jsx - launch sheet, compat picker, row menu, banner, toasts, empty, cmdk
-import React, { useState as uS, useEffect as uE, useRef as uR, useMemo as uM } from "react";
+// surfaces.tsx - launch sheet, compat picker, row menu, banner, toasts, empty, cmdk
+import { useState as uS, useEffect as uE, useRef as uR, useMemo as uM } from "react";
+import type { ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Icon } from "./icons.jsx";
-import { COMPAT_TOOLS } from "./data.jsx";
+import { Icon } from "./icons";
+import { COMPAT_TOOLS } from "./data";
+import type {
+  AnchorRect, Game, DiscoveredRoot, Settings, Toast, WindowControlsPref,
+} from "./types";
+
+export type RowAction = 'launch' | 'compat' | 'clear' | 'copyLaunch' | 'copyId';
+export type SteamChoice = 'cancel' | 'closed' | 'reopen';
 
 /* ============ Window controls (custom titlebar, decorations off) ============ */
-function appWindow() {
+function appWindow(): ReturnType<typeof getCurrentWindow> | null {
   try { return getCurrentWindow(); } catch { return null; }
 }
-function WindowControls({ side }) {
+function WindowControls({ side }: { side: 'left' | 'right' }) {
   const min = () => appWindow()?.minimize().catch(() => {});
   const max = () => appWindow()?.toggleMaximize().catch(() => {});
   const close = () => appWindow()?.close().catch(() => {});
@@ -32,26 +39,25 @@ function WindowControls({ side }) {
   );
 }
 
-/* ============ Modal scrim (click or Escape to close) ============ */
-function Scrim({ onClose }) {
+/* ============ Modal scrim (native <button>; click or Enter to close) ============ */
+function Scrim({ onClose }: { onClose: () => void }) {
   return (
-    <div
-      className="scrim"
-      role="button"
-      tabIndex={-1}
-      aria-label="Close"
-      onClick={onClose}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-    />
+    <button type="button" className="scrim" aria-label="Close" onClick={onClose} />
   );
 }
 
 /* ============ Popover (anchored) ============ */
-function Popover({ anchor, onClose, children, width }) {
-  const ref = uR(null);
+interface PopoverProps {
+  anchor: AnchorRect;
+  onClose: () => void;
+  children: ReactNode;
+  width?: number;
+}
+function Popover({ anchor, onClose, children, width }: PopoverProps) {
+  const ref = uR<HTMLDivElement>(null);
   uE(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    const k = (e) => { if (e.key === 'Escape') onClose(); };
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('mousedown', h);
     document.addEventListener('keydown', k);
     return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', k); };
@@ -59,21 +65,24 @@ function Popover({ anchor, onClose, children, width }) {
   // position: prefer below-left of anchor, flip up if needed
   const w = width || 240;
   let left = anchor.left;
-  if (left + w > window.innerWidth - 12) left = window.innerWidth - w - 12;
+  if (left + w > globalThis.innerWidth - 12) left = globalThis.innerWidth - w - 12;
   let top = anchor.bottom + 5;
   const estH = 280;
-  if (top + estH > window.innerHeight - 12) top = Math.max(12, anchor.top - estH);
+  if (top + estH > globalThis.innerHeight - 12) top = Math.max(12, anchor.top - estH);
   return (
     <div className="popover" ref={ref} style={{ left, top, minWidth: w }}>{children}</div>
   );
 }
 
 /* ============ Compat picker ============ */
-function CompatPicker({ anchor, targets, onPick, onClose }) {
-  const vals = uM(() => {
-    const s = new Set(targets.map((t) => t.compat));
-    return s;
-  }, [targets]);
+interface CompatPickerProps {
+  anchor: AnchorRect;
+  targets: Game[];
+  onPick: (id: string) => void;
+  onClose: () => void;
+}
+function CompatPicker({ anchor, targets, onPick, onClose }: CompatPickerProps) {
+  const vals = uM(() => new Set(targets.map((t) => t.compat)), [targets]);
   const mixed = vals.size > 1;
   const current = mixed ? null : [...vals][0];
   return (
@@ -90,7 +99,13 @@ function CompatPicker({ anchor, targets, onPick, onClose }) {
 }
 
 /* ============ Row context menu ============ */
-function RowMenu({ anchor, game, onAction, onClose }) {
+interface RowMenuProps {
+  anchor: AnchorRect;
+  game: Game;
+  onAction: (action: RowAction) => void;
+  onClose: () => void;
+}
+function RowMenu({ anchor, game, onAction, onClose }: RowMenuProps) {
   return (
     <Popover anchor={anchor} onClose={onClose} width={216}>
       <div className="pop-label" style={{ fontFamily: 'var(--mono)', textTransform: 'none', color: 'var(--tx-lo)' }}>{game.name}</div>
@@ -106,7 +121,12 @@ function RowMenu({ anchor, game, onAction, onClose }) {
 }
 
 /* ============ Steam-running banner ============ */
-function SteamBanner({ onCloseSteam, busy, onDismiss }) {
+interface SteamBannerProps {
+  onCloseSteam: () => void;
+  busy: boolean;
+  onDismiss: () => void;
+}
+function SteamBanner({ onCloseSteam, busy, onDismiss }: SteamBannerProps) {
   return (
     <div className="banner">
       <span className="b-ico"><Icon name="alert" size={17} /></span>
@@ -124,7 +144,11 @@ function SteamBanner({ onCloseSteam, busy, onDismiss }) {
 }
 
 /* ============ Steam close/apply/reopen confirm ============ */
-function SteamConfirm({ count, onChoose }) {
+interface SteamConfirmProps {
+  count: number;
+  onChoose: (choice: SteamChoice) => void;
+}
+function SteamConfirm({ count, onChoose }: SteamConfirmProps) {
   return (
     <dialog className="modal-host" open aria-label="Steam is running">
       <Scrim onClose={() => onChoose('cancel')} />
@@ -160,21 +184,30 @@ function SteamConfirm({ count, onChoose }) {
 }
 
 /* ============ Settings sheet ============ */
-function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPreviewScale, onSave, onClose }) {
+interface SettingsSheetProps {
+  settings: Settings;
+  effectiveRoot: string;
+  discovered: DiscoveredRoot[];
+  systemScale: number;
+  onPreviewScale: (v: number) => void;
+  onSave: (next: Settings) => void;
+  onClose: () => void;
+}
+function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPreviewScale, onSave, onClose }: SettingsSheetProps) {
   const sys = typeof systemScale === 'number' && systemScale > 0 ? systemScale : 1;
   const [root, setRoot] = uS(settings.steam_root || '');
   const [silent, setSilent] = uS(settings.silent_start !== false);
-  const [wc, setWc] = uS(settings.window_controls || 'auto');
+  const [wc, setWc] = uS<WindowControlsPref>(settings.window_controls || 'auto');
   const [scaleAuto, setScaleAuto] = uS(settings.ui_scale <= 0);
   const [manualScale, setManualScale] = uS(settings.ui_scale > 0 ? settings.ui_scale : sys);
   const trimmed = root.trim();
   const usingAuto = trimmed === '';
   const detectedSuffix = effectiveRoot ? ` (${effectiveRoot})` : '';
   const detectPlaceholder = `Auto-detect${detectedSuffix}`;
-  const WC_OPTS = [['auto', 'Auto'], ['left', 'Left'], ['right', 'Right'], ['hidden', 'Hidden']];
+  const WC_OPTS: Array<[WindowControlsPref, string]> = [['auto', 'Auto'], ['left', 'Left'], ['right', 'Right'], ['hidden', 'Hidden']];
   const effScale = scaleAuto ? sys : manualScale;
-  const preview = (v) => { if (onPreviewScale) onPreviewScale(v); };
-  const stepScale = (delta) => {
+  const preview = (v: number) => { if (onPreviewScale) onPreviewScale(v); };
+  const stepScale = (delta: number) => {
     const base = scaleAuto ? sys : manualScale;
     const c = Math.min(2, Math.max(0.6, Math.round((base + delta) * 100) / 100));
     setScaleAuto(false);
@@ -279,7 +312,12 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
 }
 
 /* ============ Toasts ============ */
-function Toasts({ toasts, onDismiss, onUndo }) {
+interface ToastsProps {
+  toasts: Toast[];
+  onDismiss: (id: number) => void;
+  onUndo: (t: Toast) => void;
+}
+function Toasts({ toasts, onDismiss, onUndo }: ToastsProps) {
   return (
     <div className="toasts">
       {toasts.map((t) => (
@@ -298,7 +336,7 @@ function Toasts({ toasts, onDismiss, onUndo }) {
 }
 
 /* ============ Empty / first run ============ */
-function EmptyState({ onRetry }) {
+function EmptyState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="empty">
       <div className="e-mark"><Icon name="folder" size={26} /></div>

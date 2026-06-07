@@ -1,8 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
-import { Toolbar, GamesTable, BulkBar, Footer, Check, StatusBadge, WrapTag } from "./table.jsx";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { Toolbar, GamesTable, BulkBar, Footer, Check, StatusBadge, WrapTag } from "./table";
+import type { Mock } from "vitest";
+import type { Game, SortState, CheckState } from "./types";
 
-const ROWS = [
+const qs = (sel: string): HTMLElement => {
+  const el = document.querySelector<HTMLElement>(sel);
+  if (!el) throw new Error(`element not found: ${sel}`);
+  return el;
+};
+
+const ROWS: Game[] = [
   { id: "g1", name: "Elden Ring", appid: "1245620", status: "installed", compat: "default", launch: "PROTON_ENABLE_HDR=1 game %command%" },
   { id: "g2", name: "Stellaris", appid: "281990", status: "owned", compat: "exp", launch: "" },
 ];
@@ -16,7 +24,7 @@ describe("Check", () => {
     expect(document.querySelector(".cbx.on")).toBeInTheDocument();
     rerender(<Check state="dash" onClick={onClick} />);
     expect(document.querySelector(".cbx.dash")).toBeInTheDocument();
-    fireEvent.click(document.querySelector(".cbx"));
+    fireEvent.click(qs(".cbx"));
     expect(onClick).toHaveBeenCalled();
   });
 });
@@ -58,20 +66,20 @@ describe("Toolbar", () => {
   it("shows a clear button when search has text", () => {
     const p = { ...props(), search: "x" };
     render(<Toolbar {...p} />);
-    fireEvent.click(document.querySelector(".s-clear"));
+    fireEvent.click(qs(".s-clear"));
     expect(p.setSearch).toHaveBeenCalledWith("");
   });
 });
 
 describe("GamesTable", () => {
-  const props = (over = {}) => ({
+  const props = (over: Partial<Parameters<typeof GamesTable>[0]> = {}) => ({
     rows: ROWS,
     selected: new Set(["g1"]),
-    sort: { col: "name", dir: "asc" },
+    sort: { col: "name", dir: "asc" } as SortState,
     setSort: vi.fn(),
     onToggle: vi.fn(),
     onToggleAll: vi.fn(),
-    headState: "dash",
+    headState: "dash" as CheckState,
     onCompatClick: vi.fn(),
     onRowMenu: vi.fn(),
     onLaunchClick: vi.fn(),
@@ -89,7 +97,7 @@ describe("GamesTable", () => {
     render(<GamesTable {...p} />);
     fireEvent.click(screen.getByText("Stellaris"));
     expect(p.onToggle).toHaveBeenCalledWith("g2");
-    fireEvent.click(document.querySelector("thead .cbx"));
+    fireEvent.click(qs("thead .cbx"));
     expect(p.onToggleAll).toHaveBeenCalled();
   });
 
@@ -99,7 +107,7 @@ describe("GamesTable", () => {
     fireEvent.click(screen.getByText("AppID"));
     expect(p.setSort).toHaveBeenCalled();
     // calling the updater with the same active col flips direction
-    const updater = p.setSort.mock.calls[0][0];
+    const updater = (p.setSort as Mock).mock.calls[0][0];
     expect(updater({ col: "appid", dir: "asc" })).toEqual({ col: "appid", dir: "desc" });
     expect(updater({ col: "name", dir: "asc" })).toEqual({ col: "appid", dir: "asc" });
   });
@@ -111,13 +119,13 @@ describe("GamesTable", () => {
     expect(p.onCompatClick).toHaveBeenCalled();
     fireEvent.click(screen.getByText(/PROTON_ENABLE_HDR/));
     expect(p.onLaunchClick).toHaveBeenCalled();
-    fireEvent.click(document.querySelectorAll(".row-act")[0]);
+    fireEvent.click(qs(".row-act"));
     expect(p.onRowMenu).toHaveBeenCalled();
   });
 
   it("shows a launch tooltip on hover and hides it on leave", () => {
     render(<GamesTable {...props()} />);
-    const cell = document.querySelector(".launch-click");
+    const cell = qs(".launch-click");
     fireEvent.mouseEnter(cell);
     expect(document.querySelector(".tip")).toBeInTheDocument();
     fireEvent.mouseLeave(cell);
@@ -158,16 +166,16 @@ describe("Footer", () => {
     const onStartSteam = vi.fn();
     render(<Footer total={36} installed={30} shown={36} selected={2} steamRunning={false} steamBusy={false} onCloseSteam={vi.fn()} onStartSteam={onStartSteam} />);
     expect(screen.getByText("selected")).toBeInTheDocument();
-    fireEvent.click(document.querySelector(".foot-state"));
+    fireEvent.click(qs(".foot-state"));
     expect(onStartSteam).toHaveBeenCalled();
   });
   it("calls close when running, and no-ops while busy", () => {
     const onCloseSteam = vi.fn();
     const { rerender } = render(<Footer total={1} installed={1} shown={1} selected={0} steamRunning={true} steamBusy={false} onCloseSteam={onCloseSteam} onStartSteam={vi.fn()} />);
-    fireEvent.click(document.querySelector(".foot-state"));
+    fireEvent.click(qs(".foot-state"));
     expect(onCloseSteam).toHaveBeenCalledTimes(1);
     rerender(<Footer total={1} installed={1} shown={1} selected={0} steamRunning={true} steamBusy={true} onCloseSteam={onCloseSteam} onStartSteam={vi.fn()} />);
-    fireEvent.click(document.querySelector(".foot-state"));
+    fireEvent.click(qs(".foot-state"));
     expect(onCloseSteam).toHaveBeenCalledTimes(1); // unchanged while busy
   });
 });

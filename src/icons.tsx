@@ -1,5 +1,7 @@
-// icons.jsx - curated lucide-style line icons (16px default, 1.75 stroke)
-const ICON_PATHS = {
+// icons.tsx - curated lucide-style line icons (16px default, 1.75 stroke)
+import type { CSSProperties } from "react";
+
+const ICON_PATHS: Record<string, string> = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
@@ -51,7 +53,15 @@ const ICON_PATHS = {
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
 };
 
-function Icon({ name, size = 16, stroke = 1.75, className = '', style = {} }) {
+interface IconProps {
+  name: string;
+  size?: number;
+  stroke?: number;
+  className?: string;
+  style?: CSSProperties;
+}
+
+function Icon({ name, size = 16, stroke = 1.75, className = '', style = {} }: IconProps) {
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24"

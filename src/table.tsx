@@ -1,11 +1,14 @@
-// table.jsx - toolbar, games table, bulk bar, footer
-import React, { useState } from "react";
-import { Icon } from "./icons.jsx";
-import { parseWrapper, HiLaunch, compatName, LIBRARY_PATH } from "./data.jsx";
+// table.tsx - toolbar, games table, bulk bar, footer
+import { useState } from "react";
+import type { Dispatch, SetStateAction, MouseEvent as ReactMouseEvent } from "react";
+import { Icon } from "./icons";
+import { parseWrapper, HiLaunch, compatName, LIBRARY_PATH } from "./data";
+import type {
+  Game, GameStatus, Filters, Counts, FilterKey, SortState, CheckState,
+} from "./types";
 
 /* ---------------- Checkbox ---------------- */
-function Check({ state, onClick }) {
-  // state: false | true | 'dash'
+function Check({ state, onClick }: { state: CheckState; onClick: (e: ReactMouseEvent) => void }) {
   let cls = 'cbx';
   let icon = null;
   if (state === 'dash') {
@@ -23,8 +26,16 @@ function Check({ state, onClick }) {
 }
 
 /* ---------------- Toolbar ---------------- */
-function Toolbar({ search, setSearch, filters, toggleFilter, counts, onOpenCmdk }) {
-  const FILTERS = [
+interface ToolbarProps {
+  search: string;
+  setSearch: (s: string) => void;
+  filters: Filters;
+  toggleFilter: (id: FilterKey) => void;
+  counts: Counts;
+  onOpenCmdk: () => void;
+}
+function Toolbar({ search, setSearch, filters, toggleFilter, counts, onOpenCmdk }: ToolbarProps) {
+  const FILTERS: Array<{ id: FilterKey; label: string; ct: number }> = [
     { id: 'installed', label: 'Installed', ct: counts.installed },
     { id: 'owned', label: 'Owned-only', ct: counts.owned },
     { id: 'custom', label: 'Custom launch', ct: counts.custom },
@@ -60,7 +71,13 @@ function Toolbar({ search, setSearch, filters, toggleFilter, counts, onOpenCmdk 
 }
 
 /* ---------------- Table ---------------- */
-const COLUMNS = [
+interface Column {
+  id: string;
+  label: string;
+  cls: string;
+  sortable: boolean;
+}
+const COLUMNS: Column[] = [
   { id: 'name', label: 'Game', cls: 'col-name', sortable: true },
   { id: 'appid', label: 'AppID', cls: 'col-appid', sortable: true },
   { id: 'status', label: 'Status', cls: 'col-status', sortable: true },
@@ -68,21 +85,21 @@ const COLUMNS = [
   { id: 'launch', label: 'Launch options', cls: 'col-launch', sortable: false },
 ];
 
-function StatusBadge({ status }) {
+function StatusBadge({ status }: { status: GameStatus }) {
   if (status === 'installed') {
     return <span className="badge installed"><span className="dot" />Installed</span>;
   }
   return <span className="badge owned"><span className="dot" />Owned-only</span>;
 }
 
-function WrapTag({ launch }) {
+function WrapTag({ launch }: { launch: string }) {
   const w = parseWrapper(launch);
   if (w === 'none') return null;
-  const labels = { gamescope: 'gamescope', xwayland: 'xwayland', native: 'native', other: 'env' };
+  const labels: Record<string, string> = { gamescope: 'gamescope', xwayland: 'xwayland', native: 'native', other: 'env' };
   return <span className={'wrap-tag ' + w}>{labels[w]}</span>;
 }
 
-function LaunchCell({ value }) {
+function LaunchCell({ value }: { value: string }) {
   if (!value) return <span className="launch-empty">no launch options</span>;
   return (
     <div className="launch-cell">
@@ -91,7 +108,18 @@ function LaunchCell({ value }) {
   );
 }
 
-function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchClick, onTip }) {
+type TipState = { value: string; x: number; y: number } | null;
+
+interface GameRowProps {
+  game: Game;
+  selected: boolean;
+  onToggle: (id: string) => void;
+  onCompatClick: (e: ReactMouseEvent, g: Game) => void;
+  onRowMenu: (e: ReactMouseEvent, g: Game) => void;
+  onLaunchClick: (g: Game) => void;
+  onTip: (e: ReactMouseEvent | null, value?: string) => void;
+}
+function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchClick, onTip }: GameRowProps) {
   return (
     <tr className={selected ? 'sel' : ''} onClick={() => onToggle(game.id)}>
       <td className="col-check">
@@ -113,19 +141,17 @@ function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchC
       </td>
       <td className="col-launch">
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div
+          <button
+            type="button"
             className="launch-click"
             style={{ flex: 1, minWidth: 0 }}
-            role="button"
-            tabIndex={0}
             title={game.launch || undefined}
             onClick={(e) => { e.stopPropagation(); onLaunchClick(game); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onLaunchClick(game); } }}
             onMouseEnter={(e) => { if (game.launch) onTip(e, game.launch); }}
             onMouseLeave={() => onTip(null)}
           >
             <LaunchCell value={game.launch} />
-          </div>
+          </button>
           <button className="row-act" onClick={(e) => { e.stopPropagation(); onRowMenu(e, game); }}>
             <Icon name="more" size={15} />
           </button>
@@ -135,14 +161,26 @@ function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchC
   );
 }
 
-function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, headState, onCompatClick, onRowMenu, onLaunchClick }) {
-  const [tip, setTip] = useState(null);
-  const onTip = (e, value) => {
-    if (!e) { setTip(null); return; }
+interface GamesTableProps {
+  rows: Game[];
+  selected: Set<string>;
+  sort: SortState;
+  setSort: Dispatch<SetStateAction<SortState>>;
+  onToggle: (id: string) => void;
+  onToggleAll: () => void;
+  headState: CheckState;
+  onCompatClick: (e: ReactMouseEvent, g: Game) => void;
+  onRowMenu: (e: ReactMouseEvent, g: Game) => void;
+  onLaunchClick: (g: Game) => void;
+}
+function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, headState, onCompatClick, onRowMenu, onLaunchClick }: GamesTableProps) {
+  const [tip, setTip] = useState<TipState>(null);
+  const onTip = (e: ReactMouseEvent | null, value?: string) => {
+    if (!e || value === undefined) { setTip(null); return; }
     const r = e.currentTarget.getBoundingClientRect();
     setTip({ value, x: r.left, y: r.bottom + 6 });
   };
-  const setSortCol = (id) => {
+  const setSortCol = (id: string) => {
     setSort((s) => s.col === id ? { col: id, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col: id, dir: 'asc' });
   };
   return (
@@ -191,7 +229,7 @@ function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, head
         </div>
       )}
       {tip && (
-        <div className="tip mono" style={{ left: Math.min(tip.x, window.innerWidth - 380), top: tip.y }}>
+        <div className="tip mono" style={{ left: Math.min(tip.x, globalThis.innerWidth - 380), top: tip.y }}>
           <HiLaunch value={tip.value} />
         </div>
       )}
@@ -200,7 +238,17 @@ function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, head
 }
 
 /* ---------------- Bulk bar ---------------- */
-function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, onClearLaunch, onClear, disabled }) {
+interface BulkBarProps {
+  count: number;
+  installedCount: number;
+  ownedCount: number;
+  onSetLaunch: () => void;
+  onSetCompat: () => void;
+  onClearLaunch: () => void;
+  onClear: () => void;
+  disabled: boolean;
+}
+function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, onClearLaunch, onClear, disabled }: BulkBarProps) {
   return (
     <div className="bulkbar">
       <div className="bulk-count">
@@ -227,7 +275,17 @@ function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, 
 }
 
 /* ---------------- Footer ---------------- */
-function Footer({ total, installed, shown, selected, steamRunning, steamBusy, onCloseSteam, onStartSteam }) {
+interface FooterProps {
+  total: number;
+  installed: number;
+  shown: number;
+  selected: number;
+  steamRunning: boolean;
+  steamBusy: boolean;
+  onCloseSteam: () => void;
+  onStartSteam: () => void;
+}
+function Footer({ total, installed, shown, selected, steamRunning, steamBusy, onCloseSteam, onStartSteam }: FooterProps) {
   const steamAction = steamRunning ? onCloseSteam : onStartSteam;
   const onClick = steamBusy ? undefined : steamAction;
   const steamLabel = steamRunning ? 'Close Steam' : 'Start Steam';
@@ -258,18 +316,16 @@ function Footer({ total, installed, shown, selected, steamRunning, steamBusy, on
       )}
       <div className="foot-spacer" />
       <div className="foot-item foot-path">{LIBRARY_PATH}</div>
-      <div
+      <button
+        type="button"
         className={'foot-item clickable foot-state ' + (steamRunning ? 'running' : 'stopped')}
-        role="button"
-        tabIndex={0}
         onClick={onClick}
-        onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick(); } }}
         title={title}
       >
         <span className="dot" />
         <span>Steam {stateText}</span>
         <span style={{ color: 'var(--tx-faint)', marginLeft: 4 }}>{actionHint}</span>
-      </div>
+      </button>
     </div>
   );
 }

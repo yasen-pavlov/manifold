@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { invoke } from "@tauri-apps/api/core";
-import App from "./app.jsx";
+import App from "./app";
+
+// The mocked invoke is dynamically reconfigured per test; treat it as a loose Mock.
+const invokeMock = invoke as unknown as Mock;
 
 const TOOLS = [
   { id: "default", name: "Default", note: "" },
@@ -20,12 +24,12 @@ const games = () => [
   { id: "g2", name: "Stellaris", appid: "281990", status: "owned", compat: "default", launch: "", sizeGB: 0 },
   { id: "g3", name: "Hades", appid: "1145360", status: "installed", compat: "default", launch: "game %command%", sizeGB: 8 },
 ];
-const lib = (over = {}) => ({ games: games(), compat_tools: TOOLS, steam_running: steamRunning, steam_root: "/home/u/.steam/steam", ...over });
+const lib = (over: Record<string, unknown> = {}) => ({ games: games(), compat_tools: TOOLS, steam_running: steamRunning, steam_root: "/home/u/.steam/steam", ...over });
 
 beforeEach(() => {
   steamRunning = false;
-  invoke.mockReset();
-  invoke.mockImplementation(async (cmd) => {
+  invokeMock.mockReset();
+  invokeMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
       case "scan_library": return lib();
       case "load_presets": return { presets: PRESETS };
@@ -48,7 +52,12 @@ async function renderApp() {
   await screen.findByText("Elden Ring");
   return u;
 }
-const called = (cmd) => invoke.mock.calls.filter((c) => c[0] === cmd);
+const called = (cmd: string) => invokeMock.mock.calls.filter((c) => c[0] === cmd);
+const catItem = (text: string): HTMLElement => {
+  const el = [...document.querySelectorAll<HTMLElement>(".builder-cat .cat-item")].find((i) => i.textContent?.includes(text));
+  if (!el) throw new Error(`catalogue item not found: ${text}`);
+  return el;
+};
 
 describe("App - load + library", () => {
   it("scans the library and renders games + footer counts", async () => {
@@ -74,7 +83,6 @@ describe("App - load + library", () => {
 
 describe("App - launch options flow", () => {
   it("bulk-applies a launch line and supports undo", async () => {
-    const user = userEvent.setup();
     await renderApp();
     // select two games
     fireEvent.click(screen.getByText("Elden Ring"));
@@ -82,8 +90,7 @@ describe("App - launch options flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /Set launch options…/ }));
     // builder open (mixed selection -> empty line); add a wrapper to make it valid
     await screen.findByText("Set launch options");
-    const items = [...document.querySelectorAll(".builder-cat .cat-item")];
-    fireEvent.click(items.find((i) => i.textContent.includes("Native (Wayland)")));
+    fireEvent.click(catItem("Native (Wayland)"));
     fireEvent.click(screen.getByRole("button", { name: /Apply to 2 games/ }));
     await waitFor(() => expect(called("set_launch_options").length).toBe(1));
     const changes = called("set_launch_options")[0][1].changes;
@@ -160,7 +167,7 @@ describe("App - Steam running", () => {
   it("closes Steam from the footer", async () => {
     steamRunning = true;
     await renderApp();
-    fireEvent.click(document.querySelector(".foot-state"));
+    fireEvent.click(document.querySelector(".foot-state")!);
     await waitFor(() => expect(called("close_steam").length).toBe(1));
   });
 });
@@ -174,8 +181,7 @@ describe("App - presets tab", () => {
     const nameInput = await screen.findByPlaceholderText(/e\.g\. Native HDR/);
     await user.type(nameInput, "My Preset");
     // add a wrapper so the line is valid
-    const items = [...document.querySelectorAll(".builder-cat .cat-item")];
-    fireEvent.click(items.find((i) => i.textContent.includes("Native (Wayland)")));
+    fireEvent.click(catItem("Native (Wayland)"));
     fireEvent.click(screen.getByRole("button", { name: /Save preset/ }));
     await waitFor(() => expect(called("save_presets").length).toBe(1));
   });
@@ -184,7 +190,7 @@ describe("App - presets tab", () => {
     await renderApp();
     fireEvent.click(screen.getByRole("button", { name: /Presets/ }));
     const card = await screen.findByText("Native HDR");
-    const cardEl = card.closest(".preset-card");
+    const cardEl = card.closest(".preset-card") as HTMLElement;
     fireEvent.click(within(cardEl).getByTitle("Duplicate"));
     await waitFor(() => expect(called("save_presets").length).toBe(1));
     fireEvent.click(within(cardEl).getByTitle("Delete"));

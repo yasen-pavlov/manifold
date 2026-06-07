@@ -1,28 +1,30 @@
-// builder.jsx - the shared structured builder (apply + preset contexts) and the unified presets list.
+// builder.tsx - the shared structured builder (apply + preset contexts) and the unified presets list.
 // Presets are stored as launch STRINGS; this surface parses a string into editable pills on open
 // (via context.initialPills) and composes pills back to a string on apply/save.
-import React, { useState as bsS, useMemo as bsM, useCallback as bsC } from "react";
-import { Icon } from "./icons.jsx";
-import { PillLine, PreviewBlock } from "./pills.jsx";
-import { Catalogue } from "./catalogue.jsx";
-import { composeLine, validateLine, parseLine, makePill, makeCustomPill, isEnvToken } from "./catalogue-data.jsx";
+import { useState as bsS, useMemo as bsM, useCallback as bsC } from "react";
+import { Icon } from "./icons";
+import { PillLine, PreviewBlock } from "./pills";
+import { Catalogue } from "./catalogue";
+import { composeLine, validateLine, parseLine, makePill, makeCustomPill, isEnvToken } from "./catalogue-data";
+import type {
+  BuilderContext, Preset, PresetDraft, Pill, MixedLine, CatalogueItem,
+} from "./types";
 
-const newUid = () => 'pill' + Math.random().toString(36).slice(2);
-const keyAct = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); } };
+const newUid = (): string => 'pill' + Math.random().toString(36).slice(2);
 
-function miniClass(t) {
+function miniClass(t: string): string {
   if (t === '%command%') return 'cmd';
   if (isEnvToken(t)) return 'env';
   return '';
 }
 
 /* mono mini-highlighter for compact preset lines */
-function MiniLine({ value }) {
+function MiniLine({ value }: { value: string }) {
   const toks = (value || '').split(/(\s+)/);
   return <>{toks.map((t, i) => (/^\s+$/.test(t) ? t : <span key={`${i}-${t}`} className={miniClass(t)}>{t}</span>))}</>;
 }
 
-function presetStatusHint(canSave, name, hasError) {
+function presetStatusHint(canSave: boolean, name: string, hasError: boolean): string {
   if (canSave) return 'Ready to save.';
   if (!name.trim()) return 'Name the preset to save.';
   if (hasError) return 'Fix errors before saving.';
@@ -30,24 +32,24 @@ function presetStatusHint(canSave, name, hasError) {
 }
 
 /* "Start from preset" dropdown list */
-function StartFromPreset({ presets, onPick }) {
+function StartFromPreset({ presets, onPick }: { presets: Preset[]; onPick: (p: Preset) => void }) {
   return (
     <div className="mixed-list" style={{ marginTop: 0, marginBottom: 14, borderColor: 'var(--acc-line)' }}>
       {presets.length === 0 && <div className="mixed-row"><span className="mr-str" style={{ color: 'var(--tx-faint)' }}>No saved presets yet.</span></div>}
       {presets.map((p) => (
-        <div key={p.id} className="mixed-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPick(p)} onKeyDown={keyAct(() => onPick(p))}>
+        <button type="button" key={p.id} className="mixed-row" style={{ cursor: 'pointer' }} onClick={() => onPick(p)}>
           <Icon name="bookmark" size={13} style={{ color: 'var(--acc)' }} />
           <span style={{ color: 'var(--tx-hi)', fontWeight: 500, fontSize: 12, minWidth: 120 }}>{p.name}</span>
           <span className="mr-str">{p.value}</span>
           <Icon name="cornerDownRight" size={13} style={{ color: 'var(--tx-faint)' }} />
-        </div>
+        </button>
       ))}
     </div>
   );
 }
 
 /* mixed-selection detail (apply context, when selected games differ) */
-function MixedLines({ mixedLines, targetCount }) {
+function MixedLines({ mixedLines, targetCount }: { mixedLines: MixedLine[]; targetCount: number }) {
   return (
     <div style={{ marginTop: 16 }}>
       <div className="canvas-block-label"><Icon name="alert" size={13} style={{ color: 'var(--warn)' }} />Current lines differ<span className="cbl-line" /></div>
@@ -66,7 +68,23 @@ function MixedLines({ mixedLines, targetCount }) {
 }
 
 /* footer actions - differ between preset and apply contexts */
-function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canApply, hasError, targetCount, pills, onClose, onSavePreset, onApply, onStartFromPreset }) {
+interface BuilderFooterProps {
+  isPreset: boolean;
+  context: BuilderContext;
+  name: string;
+  desc: string;
+  finalStr: string;
+  canSave: boolean;
+  canApply: boolean;
+  hasError: boolean;
+  targetCount: number;
+  pills: Pill[];
+  onClose: () => void;
+  onSavePreset: (p: PresetDraft) => void;
+  onApply: (val: string) => void;
+  onStartFromPreset?: (kind: string, pills: Pill[]) => void;
+}
+function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canApply, hasError, targetCount, pills, onClose, onSavePreset, onApply, onStartFromPreset }: BuilderFooterProps) {
   if (isPreset) {
     return (
       <div className="builder-foot">
@@ -95,13 +113,21 @@ function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canAp
 
 /* ============================================================
    BUILDER SURFACE - shared between contexts
-   context: { mode:'apply'|'preset', targets?:[games], preset?:{id,name,desc,value}, initialPills, mixedLines }
    ============================================================ */
-function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onStartFromPreset, mixedLines }) {
+interface BuilderSurfaceProps {
+  context: BuilderContext;
+  presets: Preset[];
+  onApply: (val: string) => void;
+  onSavePreset: (p: PresetDraft) => void;
+  onClose: () => void;
+  onStartFromPreset?: (kind: string, pills: Pill[]) => void;
+  mixedLines?: MixedLine[];
+}
+function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onStartFromPreset, mixedLines }: BuilderSurfaceProps) {
   const isPreset = context.mode === 'preset';
 
   // initial pills
-  const [pills, setPills] = bsS(() => {
+  const [pills, setPills] = bsS<Pill[]>(() => {
     if (context.initialPills) return context.initialPills.map((p) => ({ ...p, uid: p.uid || newUid() }));
     return [];
   });
@@ -114,10 +140,10 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
   const finalStr = bsM(() => (rawMode ? rawText : composeLine(pills)), [pills, rawMode, rawText]);
   const validation = bsM(() => validateLine(finalStr, pills), [finalStr, pills]);
 
-  const setPillsAndExitRaw = (next) => { setPills(next); if (rawMode) { setRawMode(false); } };
+  const setPillsAndExitRaw = (next: Pill[]) => { setPills(next); if (rawMode) { setRawMode(false); } };
 
   // add a catalogue item
-  const addItem = bsC((item) => {
+  const addItem = bsC((item: CatalogueItem) => {
     setPills((prev) => {
       // wrapper: replace existing wrapper
       if (item.kind === 'wrapper' || item.kind === 'complex') {
@@ -138,7 +164,7 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
     if (rawMode) setRawMode(false);
   }, [rawMode]);
 
-  const addCustom = bsC((tokenStr) => {
+  const addCustom = bsC((tokenStr: string) => {
     setPills((prev) => {
       const wrapper = prev.find((p) => p.kind === 'wrapper' || p.kind === 'complex');
       const rest = prev.filter((p) => p !== wrapper);
@@ -152,9 +178,9 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
     if (rawMode) { setPills(parseLine(rawText)); setRawMode(false); }
     else { setRawText(composeLine(pills)); setRawMode(true); }
   };
-  const onRawChange = (v) => { setRawText(v); };
+  const onRawChange = (v: string) => { setRawText(v); };
 
-  const loadPreset = (preset) => {
+  const loadPreset = (preset: Preset) => {
     setPills(parseLine(preset.value).map((p) => ({ ...p, uid: newUid() })));
     setRawMode(false); setStartOpen(false);
     if (isPreset && !name) { setName(preset.name); setDesc(preset.desc); }
@@ -163,7 +189,7 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
   const hasError = validation.level === 'error';
   const isEmpty = pills.length === 0 && !rawText.trim();
   const canApply = !hasError && !isEmpty;
-  const canSave = canApply && name.trim();
+  const canSave = canApply && name.trim().length > 0;
 
   const targetCount = context.targets?.length || 0;
   let headerTitle = 'Set launch options';
@@ -171,14 +197,8 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
 
   return (
     <dialog className="modal-host" open aria-label={isPreset ? 'Preset editor' : 'Set launch options'}>
-      <div
-        className="builder-scrim"
-        role="button"
-        tabIndex={-1}
-        aria-label="Close"
-        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-        onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-      >
+      <div className="builder-scrim">
+        <button type="button" className="builder-backdrop" aria-label="Close" onClick={onClose} />
         <div className="builder">
         {/* header */}
         <div className="builder-head">
@@ -254,9 +274,18 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
 
 /* ============================================================
    UNIFIED PRESETS LIST (replaces the two-column manager)
-   presets: [{ id, name, desc, value }]
    ============================================================ */
-function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, hasSelection, selCount }) {
+interface PresetsListProps {
+  presets: Preset[];
+  onNew: () => void;
+  onEdit: (p: Preset) => void;
+  onDuplicate: (p: Preset) => void;
+  onDelete: (p: Preset) => void;
+  onApply: (p: Preset) => void;
+  hasSelection: boolean;
+  selCount: number;
+}
+function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, hasSelection, selCount }: PresetsListProps) {
   return (
     <div className="page">
       <div className="page-inner" style={{ maxWidth: 880 }}>
@@ -283,7 +312,7 @@ function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, h
                   <div className="pc-desc">{p.desc || <span style={{ color: 'var(--tx-faint)' }}>No description</span>}</div>
                   <div className="pc-mini">
                     {blocks.map((b) => (
-                      <span className="mini-pill" key={b.uid}>{b.kind === 'choice' || b.kind === 'input' ? `${b.key}=${b.value}` : b.token || b.name}</span>
+                      <span className="mini-pill" key={b.uid}>{b.kind === 'choice' || b.kind === 'input' ? `${b.key}=${b.value}` : b.token}</span>
                     ))}
                     {wrapper && <span className="mini-pill wrap">{wrapper.name} ›</span>}
                   </div>

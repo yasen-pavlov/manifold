@@ -38,3 +38,6 @@ src-tauri/*.profraw
 playwright-report
 test-results
 /.playwright
+
+# Local SonarQube MCP wiring (per-machine, contains no shared config)
+.mcp.json

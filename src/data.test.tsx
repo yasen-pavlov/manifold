@@ -9,7 +9,7 @@ import {
   LIBRARY_PATH,
   compatName,
   setCompatTools,
-} from "./data.jsx";
+} from "./data";
 
 describe("parseWrapper", () => {
   it("returns 'none' for empty / blank", () => {
@@ -38,9 +38,9 @@ describe("tokenizeLaunch", () => {
   });
   it("classifies spaces, command, env, and plain tokens", () => {
     const toks = tokenizeLaunch("DXVK_HUD=fps game %command%");
-    expect(toks.find((t) => t.t === "env").v).toBe("DXVK_HUD=fps");
-    expect(toks.find((t) => t.t === "cmd").v).toBe("%command%");
-    expect(toks.find((t) => t.t === "plain").v).toBe("game");
+    expect(toks.find((t) => t.t === "env")!.v).toBe("DXVK_HUD=fps");
+    expect(toks.find((t) => t.t === "cmd")!.v).toBe("%command%");
+    expect(toks.find((t) => t.t === "plain")!.v).toBe("game");
     expect(toks.some((t) => t.t === "sp")).toBe(true);
   });
 });

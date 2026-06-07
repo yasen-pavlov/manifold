@@ -1,30 +1,32 @@
-// catalogue.jsx - searchable building-block catalogue (right pane of the builder)
-import React, { useState as cgS, useMemo as cgM } from "react";
-import { Icon } from "./icons.jsx";
-import { CATEGORIES, CATALOGUE } from "./catalogue-data.jsx";
+// catalogue.tsx - searchable building-block catalogue (right pane of the builder)
+import { useState as cgS, useMemo as cgM } from "react";
+import { Icon } from "./icons";
+import { CATEGORIES, CATALOGUE } from "./catalogue-data";
+import type { CatalogueItem, Category, Pill } from "./types";
 
-function kindLabel(kind) {
-  return { toggle: 'toggle', choice: 'choice', input: 'input', wrapper: 'wrapper', complex: 'complex', tool: 'tool' }[kind] || kind;
+type ItemState = 'added' | 'current' | null;
+
+function kindLabel(kind: string): string {
+  const labels: Record<string, string> = { toggle: 'toggle', choice: 'choice', input: 'input', wrapper: 'wrapper', complex: 'complex', tool: 'tool' };
+  return labels[kind] || kind;
 }
 
-function CatalogueItem({ item, state, onAdd }) {
-  // state: 'added' | 'current' | null
+interface CatalogueRowProps {
+  item: CatalogueItem;
+  state: ItemState;
+  onAdd: (item: CatalogueItem) => void;
+}
+function CatalogueRow({ item, state, onAdd }: CatalogueRowProps) {
   const isWrapper = item.kind === 'wrapper' || item.kind === 'complex';
   const monoName = item.kind === 'toggle' || item.kind === 'choice' || item.kind === 'input' || item.kind === 'tool';
   const added = state === 'added' || state === 'current';
-  const addCls = { current: ' is-current', added: ' is-added' }[state] || '';
+  const addCls = state === 'current' ? ' is-current' : state === 'added' ? ' is-added' : '';
   let title = 'Add';
   if (isWrapper) title = 'Set wrapper';
   else if (added) title = 'In line';
   const add = () => onAdd(item);
   return (
-    <div
-      className={'cat-item' + (added ? ' added' : '')}
-      role="button"
-      tabIndex={0}
-      onClick={add}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); add(); } }}
-    >
+    <button type="button" className={'cat-item' + (added ? ' added' : '')} onClick={add}>
       <div className="ci-main">
         <div className={'ci-name' + (monoName ? ' mono' : '')}>
           {item.name}
@@ -35,11 +37,16 @@ function CatalogueItem({ item, state, onAdd }) {
       <span className={'ci-add' + addCls} title={title}>
         <Icon name={added ? 'check' : 'plus'} size={14} />
       </span>
-    </div>
+    </button>
   );
 }
 
-function Catalogue({ pills, onAdd, onAddCustom }) {
+interface CatalogueProps {
+  pills: Pill[];
+  onAdd: (item: CatalogueItem) => void;
+  onAddCustom: (token: string) => void;
+}
+function Catalogue({ pills, onAdd, onAddCustom }: CatalogueProps) {
   const [q, setQ] = cgS('');
   const [cat, setCat] = cgS('all');
   const [customVal, setCustomVal] = cgS('');
@@ -56,21 +63,26 @@ function Catalogue({ pills, onAdd, onAddCustom }) {
       if (cat !== 'all' && cat !== 'custom' && c.cat !== cat) return false;
       if (cat === 'custom') return false;
       if (!query) return true;
-      return (c.name + ' ' + c.desc + ' ' + (c.token || '') + ' ' + (c.key || '')).toLowerCase().includes(query);
+      const token = 'token' in c ? c.token : '';
+      const key = 'key' in c ? c.key : '';
+      return (c.name + ' ' + c.desc + ' ' + token + ' ' + key).toLowerCase().includes(query);
     });
   }, [q, cat]);
 
   const grouped = cgM(() => {
     const order = CATEGORIES.map((c) => c.id);
-    const m = {};
+    const m: Record<string, CatalogueItem[]> = {};
     filtered.forEach((c) => {
       if (!m[c.cat]) m[c.cat] = [];
       m[c.cat].push(c);
     });
-    return order.filter((id) => m[id]).map((id) => ({ cat: CATEGORIES.find((c) => c.id === id), items: m[id] }));
+    return order.filter((id) => m[id]).map((id) => {
+      const category = CATEGORIES.find((c) => c.id === id) as Category;
+      return { cat: category, items: m[id] };
+    });
   }, [filtered]);
 
-  const stateFor = (item) => {
+  const stateFor = (item: CatalogueItem): ItemState => {
     if (item.kind === 'wrapper' || item.kind === 'complex') return inLine.wrapperId === item.id ? 'current' : null;
     return inLine.byItem.has(item.id) ? 'added' : null;
   };
@@ -97,7 +109,7 @@ function Catalogue({ pills, onAdd, onAddCustom }) {
         {grouped.map(({ cat: c, items }) => (
           <div key={c.id}>
             <div className="cat-group-label"><span className="cgl-ico"><Icon name={c.icon} size={12} /></span>{c.name}<span style={{ color: 'var(--tx-faint)', fontFamily: 'var(--mono)', fontWeight: 400 }}>· {items.length}</span></div>
-            {items.map((item) => <CatalogueItem key={item.id} item={item} state={stateFor(item)} onAdd={onAdd} />)}
+            {items.map((item) => <CatalogueRow key={item.id} item={item} state={stateFor(item)} onAdd={onAdd} />)}
           </div>
         ))}
         {grouped.length === 0 && cat !== 'custom' && <div className="cat-empty">No building blocks match “{q}”.</div>}
@@ -124,4 +136,4 @@ function Catalogue({ pills, onAdd, onAddCustom }) {
   );
 }
 
-export { Catalogue, CatalogueItem };
+export { Catalogue, CatalogueRow as CatalogueItem };

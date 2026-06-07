@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // E2E tests drive the built app served by `vite preview`. Outside Tauri the app
-// falls back to its mock library (see app.jsx), so these run headless in CI with
+// falls back to its mock library (see app.tsx), so these run headless in CI with
 // no Steam install. They are NOT part of the coverage metric.
 export default defineConfig({
   testDir: "./e2e",

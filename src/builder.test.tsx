@@ -1,18 +1,28 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BuilderSurface, PresetsList } from "./builder.jsx";
-import { parseLine } from "./catalogue-data.jsx";
+import { BuilderSurface, PresetsList } from "./builder";
+import { parseLine } from "./catalogue-data";
+import type { Game } from "./types";
+
+const qs = (sel: string, root: ParentNode = document): HTMLElement => {
+  const el = root.querySelector<HTMLElement>(sel);
+  if (!el) throw new Error(`element not found: ${sel}`);
+  return el;
+};
+const pills = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>(".pill-line .pill")];
+const pillByText = (t: string): HTMLElement | undefined => pills().find((p) => p.textContent?.includes(t));
+const pillX = (t: string): HTMLElement => { const p = pillByText(t); if (!p) throw new Error(`pill not found: ${t}`); return p; };
+const wrapperPill = (): HTMLElement => { const w = pills().find((p) => p.classList.contains("is-wrapper")); if (!w) throw new Error("no wrapper pill"); return w; };
+const game = (over: Partial<Game> = {}): Game => ({ id: "g1", name: "G", appid: "1", status: "installed", compat: "default", launch: "", ...over });
 
 // click a catalogue item (right pane) by its visible name
-function addFromCatalogue(name) {
-  const items = [...document.querySelectorAll(".builder-cat .cat-item")];
-  const el = items.find((i) => i.querySelector(".ci-name")?.textContent.trim().startsWith(name));
+function addFromCatalogue(name: string) {
+  const items = [...document.querySelectorAll<HTMLElement>(".builder-cat .cat-item")];
+  const el = items.find((i) => i.querySelector(".ci-name")?.textContent?.trim().startsWith(name));
   if (!el) throw new Error(`catalogue item not found: ${name}`);
   fireEvent.click(el);
 }
-const pills = () => [...document.querySelectorAll(".pill-line .pill")];
-const pillByText = (t) => pills().find((p) => p.textContent.includes(t));
 
 const baseProps = () => ({
   presets: [
@@ -29,7 +39,7 @@ describe("BuilderSurface - apply context", () => {
     render(
       <BuilderSurface
         {...baseProps()}
-        context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }}
+        context={{ mode: "apply", targets: [game()], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }}
       />,
     );
     expect(screen.getByText("Set launch options")).toBeInTheDocument();
@@ -40,7 +50,7 @@ describe("BuilderSurface - apply context", () => {
 
   it("adds and toggles catalogue items", () => {
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: [] }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: [] }} />,
     );
     addFromCatalogue("PROTON_ENABLE_HDR");
     expect(pillByText("PROTON_ENABLE_HDR")).toBeTruthy();
@@ -51,7 +61,7 @@ describe("BuilderSurface - apply context", () => {
 
   it("a wrapper is mutually exclusive and pinned with %command%", () => {
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: [] }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: [] }} />,
     );
     addFromCatalogue("Native (Wayland)");
     addFromCatalogue("XWayland");
@@ -63,60 +73,57 @@ describe("BuilderSurface - apply context", () => {
   it("opens the gamescope complex editor, edits sub-controls, and applies", async () => {
     const user = userEvent.setup();
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: [] }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: [] }} />,
     );
     addFromCatalogue("Gamescope");
-    const wrap = pills().find((p) => p.classList.contains("is-wrapper"));
-    await user.click(wrap.querySelector(".pbody.clickable"));
+    await user.click(qs(".pbody.clickable", wrapperPill()));
     expect(document.querySelector(".gs-pop")).toBeInTheDocument();
     // toggle one flag off then apply
-    const firstToggle = document.querySelector(".gs-toggle");
-    fireEvent.click(firstToggle);
-    fireEvent.click(document.querySelector(".gs-pop .ep-foot .btn.primary"));
+    fireEvent.click(qs(".gs-toggle"));
+    fireEvent.click(qs(".gs-pop .ep-foot .btn.primary"));
     expect(document.querySelector(".gs-pop")).not.toBeInTheDocument();
   });
 
   it("edits a choice pill via its popover", async () => {
     const user = userEvent.setup();
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("DXVK_HUD=fps game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("DXVK_HUD=fps game %command%") }} />,
     );
-    await user.click(pillByText("DXVK_HUD").querySelector(".pbody.clickable"));
-    const choice = [...document.querySelectorAll(".ep-choice")].find((c) => c.textContent.includes("full"));
-    fireEvent.click(choice);
-    expect(pillByText("DXVK_HUD").textContent).toContain("full");
+    await user.click(qs(".pbody.clickable", pillX("DXVK_HUD")));
+    const choice = [...document.querySelectorAll<HTMLElement>(".ep-choice")].find((c) => c.textContent?.includes("full"));
+    fireEvent.click(choice!);
+    expect(pillX("DXVK_HUD").textContent).toContain("full");
   });
 
   it("edits an input pill via its popover", async () => {
     const user = userEvent.setup();
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("DXVK_FRAME_RATE=60 game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("DXVK_FRAME_RATE=60 game %command%") }} />,
     );
-    await user.click(pillByText("DXVK_FRAME_RATE").querySelector(".pbody.clickable"));
-    const input = document.querySelector(".ep-input-row input");
+    await user.click(qs(".pbody.clickable", pillX("DXVK_FRAME_RATE")));
+    const input = qs(".ep-input-row input");
     await user.clear(input);
     await user.type(input, "144");
-    fireEvent.click(document.querySelector(".editor-pop .ep-foot .btn.primary"));
-    expect(pillByText("DXVK_FRAME_RATE").textContent).toContain("144");
+    fireEvent.click(qs(".editor-pop .ep-foot .btn.primary"));
+    expect(pillX("DXVK_FRAME_RATE").textContent).toContain("144");
   });
 
   it("swaps the wrapper via the wrapper popover", async () => {
     const user = userEvent.setup();
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("game %command%") }} />,
     );
-    const wrap = pills().find((p) => p.classList.contains("is-wrapper"));
-    await user.click(wrap.querySelector(".pbody.clickable"));
-    const choice = [...document.querySelectorAll(".ep-choice")].find((c) => c.textContent.includes("XWayland"));
-    fireEvent.click(choice);
-    expect(pills().find((p) => p.classList.contains("is-wrapper")).textContent).toContain("XWayland");
+    await user.click(qs(".pbody.clickable", wrapperPill()));
+    const choice = [...document.querySelectorAll<HTMLElement>(".ep-choice")].find((c) => c.textContent?.includes("XWayland"));
+    fireEvent.click(choice!);
+    expect(wrapperPill().textContent).toContain("XWayland");
   });
 
   it("removes a pill and clears the line", () => {
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }} />,
     );
-    fireEvent.click(pillByText("PROTON_ENABLE_HDR").querySelector(".px"));
+    fireEvent.click(qs(".px", pillX("PROTON_ENABLE_HDR")));
     expect(pillByText("PROTON_ENABLE_HDR")).toBeFalsy();
     fireEvent.click(screen.getByRole("button", { name: /^Clear$/ }));
     expect(pills()).toHaveLength(0);
@@ -125,43 +132,43 @@ describe("BuilderSurface - apply context", () => {
 
   it("reorders reorderable pills with drag events", () => {
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("PROTON_ENABLE_HDR=1 PROTON_USE_NTSYNC=1 game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("PROTON_ENABLE_HDR=1 PROTON_USE_NTSYNC=1 game %command%") }} />,
     );
-    const first = pillByText("PROTON_ENABLE_HDR");
-    const second = pillByText("PROTON_USE_NTSYNC");
+    const first = pillX("PROTON_ENABLE_HDR");
+    const second = pillX("PROTON_USE_NTSYNC");
     const dt = { effectAllowed: "", setData: () => {} };
     // the drag source is now the grip handle button
-    fireEvent.dragStart(first.querySelector(".pgrip"), { dataTransfer: dt });
+    fireEvent.dragStart(qs(".pgrip", first), { dataTransfer: dt });
     fireEvent.dragEnter(second, { dataTransfer: dt });
-    fireEvent.dragEnd(first.querySelector(".pgrip"), { dataTransfer: dt });
+    fireEvent.dragEnd(qs(".pgrip", first), { dataTransfer: dt });
     const order = pills().map((p) => p.textContent);
     expect(order[0]).toContain("PROTON_USE_NTSYNC");
   });
 
   it("reorders pills with the keyboard (arrow keys on the grip)", () => {
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("PROTON_ENABLE_HDR=1 PROTON_USE_NTSYNC=1 game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("PROTON_ENABLE_HDR=1 PROTON_USE_NTSYNC=1 game %command%") }} />,
     );
-    const first = pillByText("PROTON_ENABLE_HDR");
-    fireEvent.keyDown(first.querySelector(".pgrip"), { key: "ArrowRight" });
+    const first = pillX("PROTON_ENABLE_HDR");
+    fireEvent.keyDown(qs(".pgrip", first), { key: "ArrowRight" });
     expect(pills().map((p) => p.textContent)[0]).toContain("PROTON_USE_NTSYNC");
   });
 
   it("removes a pill via the grip Delete key", () => {
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }} />,
     );
-    fireEvent.keyDown(pillByText("PROTON_ENABLE_HDR").querySelector(".pgrip"), { key: "Delete" });
+    fireEvent.keyDown(qs(".pgrip", pillX("PROTON_ENABLE_HDR")), { key: "Delete" });
     expect(pillByText("PROTON_ENABLE_HDR")).toBeFalsy();
   });
 
   it("supports raw editing as an escape hatch", async () => {
     const user = userEvent.setup();
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("game %command%") }} />,
     );
     await user.click(screen.getByRole("button", { name: /Edit raw/ }));
-    const ta = document.querySelector(".prev-raw");
+    const ta = qs(".prev-raw");
     await user.clear(ta);
     await user.type(ta, "mangohud game %command%");
     // toggle back to pills (parses the raw text)
@@ -173,15 +180,15 @@ describe("BuilderSurface - apply context", () => {
     const user = userEvent.setup();
     const writeSpy = vi.spyOn(navigator.clipboard, "writeText");
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("game %command%") }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("game %command%") }} />,
     );
-    await user.click(document.querySelector(".copy-btn"));
+    await user.click(qs(".copy-btn"));
     expect(writeSpy).toHaveBeenCalledWith("game %command%");
   });
 
   it("disables apply when the line is empty", () => {
     render(
-      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: [] }} />,
+      <BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: [] }} />,
     );
     expect(screen.getByRole("button", { name: /Apply to 1 game/ })).toBeDisabled();
   });
@@ -189,7 +196,7 @@ describe("BuilderSurface - apply context", () => {
   it("calls onApply with the composed line", () => {
     const props = baseProps();
     render(
-      <BuilderSurface {...props} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }} />,
+      <BuilderSurface {...props} context={{ mode: "apply", targets: [game()], initialPills: parseLine("PROTON_ENABLE_HDR=1 game %command%") }} />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Apply to 1 game/ }));
     expect(props.onApply).toHaveBeenCalledWith("PROTON_ENABLE_HDR=1 game %command%");
@@ -198,7 +205,7 @@ describe("BuilderSurface - apply context", () => {
   it("save-as-preset hands the line to onStartFromPreset", () => {
     const props = baseProps();
     render(
-      <BuilderSurface {...props} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: parseLine("game %command%") }} />,
+      <BuilderSurface {...props} context={{ mode: "apply", targets: [game()], initialPills: parseLine("game %command%") }} />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Save as preset/ }));
     expect(props.onStartFromPreset).toHaveBeenCalled();
@@ -209,7 +216,7 @@ describe("BuilderSurface - apply context", () => {
       <BuilderSurface
         {...baseProps()}
         mixedLines={[["game %command%", 2], ["", 1]]}
-        context={{ mode: "apply", targets: [{ id: "a" }, { id: "b" }, { id: "c" }], initialPills: [], mixedLines: [["game %command%", 2], ["", 1]] }}
+        context={{ mode: "apply", targets: [game({ id: "a" }), game({ id: "b" }), game({ id: "c" })], initialPills: [], mixedLines: [["game %command%", 2], ["", 1]] }}
       />,
     );
     expect(screen.getByText(/mixed selection/)).toBeInTheDocument();
@@ -218,7 +225,7 @@ describe("BuilderSurface - apply context", () => {
 
   it("cancel calls onClose", () => {
     const props = baseProps();
-    render(<BuilderSurface {...props} context={{ mode: "apply", targets: [{ id: "g1" }], initialPills: [] }} />);
+    render(<BuilderSurface {...props} context={{ mode: "apply", targets: [game()], initialPills: [] }} />);
     fireEvent.click(screen.getByRole("button", { name: /^Cancel$/ }));
     expect(props.onClose).toHaveBeenCalled();
   });
@@ -231,7 +238,7 @@ describe("BuilderSurface - preset context", () => {
     render(<BuilderSurface {...props} context={{ mode: "preset", preset: null, initialPills: parseLine("game %command%") }} />);
     const saveBtn = screen.getByRole("button", { name: /Save preset/ });
     expect(saveBtn).toBeDisabled();
-    await user.type(document.querySelector(".preset-fields input"), "My Preset");
+    await user.type(qs(".preset-fields input"), "My Preset");
     expect(saveBtn).toBeEnabled();
     fireEvent.click(saveBtn);
     expect(props.onSavePreset).toHaveBeenCalledWith(
@@ -253,7 +260,7 @@ describe("BuilderSurface - preset context", () => {
     const user = userEvent.setup();
     render(<BuilderSurface {...baseProps()} context={{ mode: "preset", preset: null, initialPills: [] }} />);
     await user.click(screen.getByRole("button", { name: /Start from preset/ }));
-    fireEvent.click(document.querySelector(".mixed-list .mixed-row"));
+    fireEvent.click(qs(".mixed-list .mixed-row"));
     expect(pillByText("PROTON_ENABLE_HDR")).toBeTruthy();
   });
 });
@@ -273,7 +280,7 @@ describe("PresetsList", () => {
     const onEdit = vi.fn(), onDuplicate = vi.fn(), onDelete = vi.fn(), onNew = vi.fn();
     render(<PresetsList presets={presets} onNew={onNew} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} onApply={vi.fn()} hasSelection={false} selCount={0} />);
     fireEvent.click(screen.getByRole("button", { name: /New preset/ }));
-    const firstCard = document.querySelector(".preset-card");
+    const firstCard = qs(".preset-card");
     fireEvent.click(within(firstCard).getByTitle("Edit"));
     fireEvent.click(within(firstCard).getByTitle("Duplicate"));
     fireEvent.click(within(firstCard).getByTitle("Delete"));
