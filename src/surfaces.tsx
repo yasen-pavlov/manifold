@@ -120,29 +120,6 @@ function RowMenu({ anchor, game, onAction, onClose }: Readonly<RowMenuProps>) {
   );
 }
 
-/* ============ Steam-running banner ============ */
-interface SteamBannerProps {
-  onCloseSteam: () => void;
-  busy: boolean;
-  onDismiss: () => void;
-}
-function SteamBanner({ onCloseSteam, busy, onDismiss }: Readonly<SteamBannerProps>) {
-  return (
-    <div className="banner">
-      <span className="b-ico"><Icon name="alert" size={17} /></span>
-      <div className="b-txt">
-        <b>Steam is running</b> - <span>changes won't stick until Steam is closed. Manifold will offer to close Steam when you apply, or close it now.</span>
-      </div>
-      <div className="b-spacer" />
-      <button className="b-act" onClick={onCloseSteam} disabled={busy}>
-        <Icon name={busy ? 'refresh' : 'power'} size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
-        {busy ? 'Closing…' : 'Close Steam'}
-      </button>
-      <button className="b-dismiss" onClick={onDismiss} title="Dismiss this banner"><Icon name="x" size={14} /></button>
-    </div>
-  );
-}
-
 /* ============ Steam close/apply/reopen confirm ============ */
 interface SteamConfirmProps {
   count: number;
@@ -198,6 +175,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
   const [root, setRoot] = uS(settings.steam_root || '');
   const [silent, setSilent] = uS(settings.silent_start !== false);
   const [wc, setWc] = uS<WindowControlsPref>(settings.window_controls || 'auto');
+  const [closeToTray, setCloseToTray] = uS(settings.close_to_tray === true);
   const [scaleAuto, setScaleAuto] = uS(settings.ui_scale <= 0);
   const [manualScale, setManualScale] = uS(settings.ui_scale > 0 ? settings.ui_scale : sys);
   const trimmed = root.trim();
@@ -280,6 +258,14 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
               <b>Hidden</b> removes them (use your compositor, e.g. Hyprland, to manage the window).
             </div>
           </div>
+          <div className="field">
+            <div className="field-cap">Closing the window</div>
+            <div className="seg">
+              <button className={closeToTray ? '' : 'on'} onClick={() => setCloseToTray(false)}>Quit Manifold</button>
+              <button className={closeToTray ? 'on' : ''} onClick={() => setCloseToTray(true)}>Hide to tray</button>
+            </div>
+            <div className="hint">{closeToTray ? 'The close button hides Manifold to the tray; reopen it from the tray icon, or quit from the tray menu.' : 'The close button quits Manifold. The tray icon still shows or hides the window while it runs.'}</div>
+          </div>
 
           <div className="section-label" style={{ marginTop: 18 }}><Icon name="eye" size={13} />Interface<span className="sl-line" /></div>
           <div className="field">
@@ -302,7 +288,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
         <div className="sheet-foot">
           <div style={{ flex: 1 }} />
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale })}>
+          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale, close_to_tray: closeToTray })}>
             <Icon name="check" size={14} />Save
           </button>
         </div>
@@ -351,4 +337,4 @@ function EmptyState({ onRetry }: Readonly<{ onRetry: () => void }>) {
   );
 }
 
-export { CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState, Popover };
+export { CompatPicker, RowMenu, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState, Popover };

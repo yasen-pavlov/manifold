@@ -6,7 +6,7 @@ import { GAMES, compatName, setCompatTools } from "./data";
 import { parseLine } from "./catalogue-data";
 import { BuilderSurface, PresetsList } from "./builder";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table";
-import { CompatPicker, RowMenu, SteamBanner, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces";
+import { CompatPicker, RowMenu, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces";
 import { BackupsView, CommandPalette } from "./presets";
 import type { RowAction, SteamChoice } from "./surfaces";
 import type {
@@ -71,7 +71,6 @@ function App() {
   const [tab, setTab] = aS('library');
 
   const [steamRunning, setSteamRunning] = aS(false);
-  const [bannerDismissed, setBannerDismissed] = aS(false);
   const [empty, setEmpty] = aS(false);
 
   const [builder, setBuilder] = aS<BuilderContext | null>(null);             // open builder context (apply or preset), else null
@@ -81,7 +80,7 @@ function App() {
   const [toasts, setToasts] = aS<Toast[]>([]);
   const [steamPrompt, setSteamPrompt] = aS<{ count: number; run: (mode: SteamChoice) => void } | null>(null); // pending close-Steam confirm
   const [steamBusy, setSteamBusy] = aS(false);
-  const [settings, setSettings] = aS<Settings>({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 0 });
+  const [settings, setSettings] = aS<Settings>({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 0, close_to_tray: false });
   const [settingsOpen, setSettingsOpen] = aS(false);
   const [discoveredRoots, setDiscoveredRoots] = aS<DiscoveredRoot[]>([]);
   const [steamRoot, setSteamRoot] = aS('');
@@ -341,7 +340,6 @@ function App() {
       setGames(Array.isArray(lib.games) ? lib.games : []);
       setSteamRunning(!!lib.steam_running);
       if (lib.steam_root) setSteamRoot(lib.steam_root);
-      setBannerDismissed(false);
       setEmpty((lib.games || []).length === 0);
       setScanError(null);
       if (!quiet) {
@@ -451,7 +449,6 @@ function App() {
     return () => globalThis.removeEventListener('keydown', onKey);
   }, [builder, compatPop, selected, tab, filteredIds]);
 
-  const showBanner = steamRunning && !bannerDismissed;
   const controlsSide = resolveControlsSide(settings.window_controls);
 
   const TABS: Array<[string, string, string]> = [['library', 'Library', 'layers'], ['presets', 'Presets', 'bookmark'], ['backups', 'Backups', 'history']];
@@ -480,8 +477,6 @@ function App() {
         <button className="icon-btn" title="Settings" onClick={() => setSettingsOpen(true)}><Icon name="settings" size={15} /></button>
         {controlsSide === 'right' && <WindowControls side="right" />}
       </div>
-
-      {showBanner && <SteamBanner onCloseSteam={closeSteam} busy={steamBusy} onDismiss={() => setBannerDismissed(true)} />}
 
       {tab === 'library' && (empty ? (
         <EmptyState onRetry={() => loadLibrary()} />
