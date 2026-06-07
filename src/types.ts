@@ -160,6 +160,7 @@ export interface Settings {
   window_controls: WindowControlsPref;
   ui_scale: number;
   close_to_tray: boolean;
+  start_minimized: boolean;
 }
 
 /* ============================================================

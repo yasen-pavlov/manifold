@@ -80,7 +80,7 @@ function App() {
   const [toasts, setToasts] = aS<Toast[]>([]);
   const [steamPrompt, setSteamPrompt] = aS<{ count: number; run: (mode: SteamChoice) => void } | null>(null); // pending close-Steam confirm
   const [steamBusy, setSteamBusy] = aS(false);
-  const [settings, setSettings] = aS<Settings>({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 0, close_to_tray: false });
+  const [settings, setSettings] = aS<Settings>({ steam_root: '', silent_start: true, window_controls: 'auto', ui_scale: 0, close_to_tray: false, start_minimized: false });
   const [settingsOpen, setSettingsOpen] = aS(false);
   const [discoveredRoots, setDiscoveredRoots] = aS<DiscoveredRoot[]>([]);
   const [steamRoot, setSteamRoot] = aS('');

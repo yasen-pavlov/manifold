@@ -176,6 +176,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
   const [silent, setSilent] = uS(settings.silent_start !== false);
   const [wc, setWc] = uS<WindowControlsPref>(settings.window_controls || 'auto');
   const [closeToTray, setCloseToTray] = uS(settings.close_to_tray === true);
+  const [startMinimized, setStartMinimized] = uS(settings.start_minimized === true);
   const [scaleAuto, setScaleAuto] = uS(settings.ui_scale <= 0);
   const [manualScale, setManualScale] = uS(settings.ui_scale > 0 ? settings.ui_scale : sys);
   const trimmed = root.trim();
@@ -266,6 +267,14 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
             </div>
             <div className="hint">{closeToTray ? 'The close button hides Manifold to the tray; reopen it from the tray icon, or quit from the tray menu.' : 'The close button quits Manifold. The tray icon still shows or hides the window while it runs.'}</div>
           </div>
+          <div className="field">
+            <div className="field-cap">On launch</div>
+            <div className="seg">
+              <button className={startMinimized ? '' : 'on'} onClick={() => setStartMinimized(false)}>Show window</button>
+              <button className={startMinimized ? 'on' : ''} onClick={() => setStartMinimized(true)}>Start in tray</button>
+            </div>
+            <div className="hint">{startMinimized ? 'Manifold launches hidden in the tray; open it from the tray icon.' : 'Manifold opens its window on launch.'}</div>
+          </div>
 
           <div className="section-label" style={{ marginTop: 18 }}><Icon name="eye" size={13} />Interface<span className="sl-line" /></div>
           <div className="field">
@@ -288,7 +297,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
         <div className="sheet-foot">
           <div style={{ flex: 1 }} />
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale, close_to_tray: closeToTray })}>
+          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale, close_to_tray: closeToTray, start_minimized: startMinimized })}>
             <Icon name="check" size={14} />Save
           </button>
         </div>
