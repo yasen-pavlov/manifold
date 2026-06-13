@@ -38,6 +38,16 @@ test("composes from the catalogue", async ({ page }) => {
   await expect(page.locator(".pill", { hasText: "DXVK_HUD" })).toBeVisible();
 });
 
+test("applies a preset from the bulk-bar picker", async ({ page }) => {
+  await page.goto("/");
+  // select a game, then open the Library-first preset picker from the bulk bar
+  await page.locator(".grid tbody tr").first().locator(".cbx").click();
+  await page.getByRole("button", { name: /Apply preset/ }).click();
+  const pop = page.locator(".popover");
+  await expect(pop).toContainText("Apply preset");
+  await expect(pop.locator(".pop-item.preset-pick").first()).toBeVisible();
+});
+
 test("navigates to the Presets and Backups tabs", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Presets/ }).click();

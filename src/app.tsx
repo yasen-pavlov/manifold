@@ -6,7 +6,7 @@ import { GAMES, MOCK_PRESETS, compatName, setCompatTools } from "./data";
 import { parseLine } from "./catalogue-data";
 import { BuilderSurface, PresetsList } from "./builder";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table";
-import { CompatPicker, RowMenu, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces";
+import { CompatPicker, PresetPicker, RowMenu, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState } from "./surfaces";
 import { BackupsView, CommandPalette } from "./presets";
 import type { RowAction, SteamChoice } from "./surfaces";
 import type {
@@ -75,6 +75,7 @@ function App() {
 
   const [builder, setBuilder] = aS<BuilderContext | null>(null);             // open builder context (apply or preset), else null
   const [compatPop, setCompatPop] = aS<{ anchor: AnchorRect; targets: Game[] } | null>(null); // compat popover: anchor rect + target games, else null
+  const [presetPop, setPresetPop] = aS<{ anchor: AnchorRect; targets: Game[] } | null>(null); // apply-preset popover: anchor rect + target games, else null
   const [rowMenu, setRowMenu] = aS<{ anchor: AnchorRect; game: Game } | null>(null);  // row menu: anchor rect + the row game, else null
   const [cmdk, setCmdk] = aS(false);
   const [toasts, setToasts] = aS<Toast[]>([]);
@@ -292,7 +293,8 @@ function App() {
     toast({ kind: 'ok', title: 'Preset deleted', sub: p.name });
   };
   const duplicatePreset = (p: Preset) => persistPresets([...presets, { ...p, id: 'pre_' + Date.now(), name: p.name + ' copy' }]);
-  const applyPresetToSelection = (p: Preset) => applyLaunch(targets.map((t) => t.id), p.value);
+  // Apply a preset's launch line to a set of games (Library-first: from the bulk bar or row menu).
+  const applyPreset = (p: Preset, gameList: Game[]) => { setPresetPop(null); applyLaunch(gameList.map((t) => t.id), p.value); };
   // "Save as preset" from the apply context: reopen the builder in preset mode, carrying the line.
   const startFromApply = (_kind: string, pills: Pill[]) => setBuilder({ mode: 'preset', preset: null, initialPills: pills.map((p) => ({ ...p })) });
 
@@ -302,6 +304,7 @@ function App() {
     const g = rowMenu.game; setRowMenu(null);
     if (action === 'launch') openBuilderFor([g]);
     else if (action === 'compat') setCompatPop({ anchor: rowMenu.anchor, targets: [g] });
+    else if (action === 'applyPreset') setPresetPop({ anchor: rowMenu.anchor, targets: [g] });
     else if (action === 'clear') clearLaunch([g.id]);
     else if (action === 'copyLaunch') { navigator.clipboard?.writeText(g.launch); toast({ kind: 'ok', title: 'Copied launch string' }); }
     else if (action === 'copyId') { navigator.clipboard?.writeText(g.appid); toast({ kind: 'ok', title: 'Copied AppID', sub: g.appid }); }
@@ -440,6 +443,7 @@ function App() {
       else if (e.key === 'Escape') {
         if (builder) setBuilder(null);
         else if (compatPop) setCompatPop(null);
+        else if (presetPop) setPresetPop(null);
         else if (selected.size) clearSel();
       }
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a' && tab === 'library' && !builder) {
@@ -448,7 +452,7 @@ function App() {
     };
     globalThis.addEventListener('keydown', onKey);
     return () => globalThis.removeEventListener('keydown', onKey);
-  }, [builder, compatPop, selected, tab, filteredIds]);
+  }, [builder, compatPop, presetPop, selected, tab, filteredIds]);
 
   const controlsSide = resolveControlsSide(settings.window_controls);
 
@@ -497,6 +501,7 @@ function App() {
               installedCount={targets.filter((t) => t.status === 'installed').length}
               ownedCount={targets.filter((t) => t.status === 'owned').length}
               onSetLaunch={() => openBuilderFor(targets)}
+              onApplyPreset={() => setPresetPop({ anchor: centerAnchor(), targets })}
               onSetCompat={() => setCompatPop({ anchor: centerAnchor(), targets })}
               onClearLaunch={() => clearLaunch(targets.map((t) => t.id))}
               onClear={clearSel}
@@ -513,9 +518,6 @@ function App() {
           onEdit={(p) => setBuilder({ mode: 'preset', preset: p, initialPills: parseLine(p.value) })}
           onDuplicate={duplicatePreset}
           onDelete={deletePreset}
-          onApply={applyPresetToSelection}
-          hasSelection={selected.size > 0}
-          selCount={selected.size}
         />
       )}
       {tab === 'backups' && <BackupsView onRestore={(b: Backup) => toast({ kind: 'ok', title: 'Backup restored', sub: `${b.when} · ${b.games} games` })} />}
@@ -538,6 +540,11 @@ function App() {
         <CompatPicker anchor={compatPop.anchor} targets={compatPop.targets}
           onPick={(id) => applyCompat(compatPop.targets.map((t) => t.id), id)}
           onClose={() => setCompatPop(null)} />
+      )}
+      {presetPop && (
+        <PresetPicker anchor={presetPop.anchor} presets={presets} targets={presetPop.targets}
+          onPick={(p) => applyPreset(p, presetPop.targets)}
+          onClose={() => setPresetPop(null)} />
       )}
       {rowMenu && <RowMenu anchor={rowMenu.anchor} game={rowMenu.game} onAction={rowAction} onClose={() => setRowMenu(null)} />}
       {cmdk && <CommandPalette commands={commands} onClose={() => setCmdk(false)} />}

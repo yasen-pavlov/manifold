@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import {
   Popover,
   CompatPicker,
+  PresetPicker,
   RowMenu,
   SteamConfirm,
   SettingsSheet,
@@ -10,7 +11,7 @@ import {
   Toasts,
   EmptyState,
 } from "./surfaces";
-import type { Game, Settings, Toast } from "./types";
+import type { Game, Preset, Settings, Toast } from "./types";
 
 const anchor = { left: 10, top: 0, bottom: 20 };
 const qs = (sel: string): HTMLElement => {
@@ -61,6 +62,26 @@ describe("CompatPicker", () => {
   it("flags a mixed selection", () => {
     render(<CompatPicker anchor={anchor} targets={[game({ compat: "default" }), game({ compat: "exp" })]} onPick={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByText(/mixed/)).toBeInTheDocument();
+  });
+});
+
+describe("PresetPicker", () => {
+  const presets: Preset[] = [
+    { id: "p1", name: "Native HDR", desc: "Wayland HDR pipeline", value: "PROTON_ENABLE_HDR=1 %command%" },
+    { id: "p2", name: "MangoHud", desc: "", value: "mangohud %command%" },
+  ];
+  it("shows the description (or the line as fallback) and picks one", () => {
+    const onPick = vi.fn();
+    render(<PresetPicker anchor={anchor} presets={presets} targets={[game(), game({ id: "g2" })]} onPick={onPick} onClose={vi.fn()} />);
+    expect(screen.getByText(/Apply preset · 2 games/)).toBeInTheDocument();
+    expect(screen.getByText("Wayland HDR pipeline")).toBeInTheDocument(); // desc shown when present
+    expect(screen.getByText("mangohud %command%")).toBeInTheDocument();   // line fallback when no desc
+    fireEvent.click(screen.getByText("MangoHud"));
+    expect(onPick).toHaveBeenCalledWith(presets[1]);
+  });
+  it("shows an empty state when there are no presets", () => {
+    render(<PresetPicker anchor={anchor} presets={[]} targets={[game()]} onPick={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByText(/No presets yet/)).toBeInTheDocument();
   });
 });
 

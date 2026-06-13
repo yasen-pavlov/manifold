@@ -148,21 +148,23 @@ describe("BulkBar", () => {
   it("renders counts and wires the actions", () => {
     const p = {
       count: 3, installedCount: 2, ownedCount: 1,
-      onSetLaunch: vi.fn(), onSetCompat: vi.fn(), onClearLaunch: vi.fn(), onClear: vi.fn(), disabled: false,
+      onSetLaunch: vi.fn(), onApplyPreset: vi.fn(), onSetCompat: vi.fn(), onClearLaunch: vi.fn(), onClear: vi.fn(), disabled: false,
     };
     render(<BulkBar {...p} />);
     expect(screen.getByText(/installed/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Set launch options/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply preset/ }));
     fireEvent.click(screen.getByRole("button", { name: /Set compatibility/ }));
     fireEvent.click(screen.getByRole("button", { name: /Clear launch options/ }));
     fireEvent.click(screen.getByRole("button", { name: /Deselect/ }));
     expect(p.onSetLaunch).toHaveBeenCalled();
+    expect(p.onApplyPreset).toHaveBeenCalled();
     expect(p.onSetCompat).toHaveBeenCalled();
     expect(p.onClearLaunch).toHaveBeenCalled();
     expect(p.onClear).toHaveBeenCalled();
   });
   it("disables write actions when disabled", () => {
-    render(<BulkBar count={1} installedCount={1} ownedCount={0} onSetLaunch={vi.fn()} onSetCompat={vi.fn()} onClearLaunch={vi.fn()} onClear={vi.fn()} disabled />);
+    render(<BulkBar count={1} installedCount={1} ownedCount={0} onSetLaunch={vi.fn()} onApplyPreset={vi.fn()} onSetCompat={vi.fn()} onClearLaunch={vi.fn()} onClear={vi.fn()} disabled />);
     expect(screen.getByRole("button", { name: /Set launch options/ })).toBeDisabled();
   });
 });

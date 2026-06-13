@@ -5,10 +5,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Icon } from "./icons";
 import { COMPAT_TOOLS } from "./data";
 import type {
-  AnchorRect, Game, DiscoveredRoot, Settings, Toast, WindowControlsPref,
+  AnchorRect, Game, DiscoveredRoot, Preset, Settings, Toast, WindowControlsPref,
 } from "./types";
 
-export type RowAction = 'launch' | 'compat' | 'clear' | 'copyLaunch' | 'copyId';
+export type RowAction = 'launch' | 'compat' | 'applyPreset' | 'clear' | 'copyLaunch' | 'copyId';
 export type SteamChoice = 'cancel' | 'closed' | 'reopen';
 
 /* ============ Window controls (custom titlebar, decorations off) ============ */
@@ -98,6 +98,34 @@ function CompatPicker({ anchor, targets, onPick, onClose }: Readonly<CompatPicke
   );
 }
 
+/* ============ Preset picker (apply a saved preset to the selection) ============ */
+interface PresetPickerProps {
+  anchor: AnchorRect;
+  presets: Preset[];
+  targets: Game[];
+  onPick: (p: Preset) => void;
+  onClose: () => void;
+}
+function PresetPicker({ anchor, presets, targets, onPick, onClose }: Readonly<PresetPickerProps>) {
+  return (
+    <Popover anchor={anchor} onClose={onClose} width={320}>
+      <div className="pop-label">Apply preset · {targets.length} game{targets.length === 1 ? '' : 's'}</div>
+      {presets.length === 0 && <div className="pop-empty">No presets yet. Create one in the Presets tab.</div>}
+      {presets.map((p) => (
+        <button key={p.id} className="pop-item preset-pick" onClick={() => onPick(p)} title={p.value}>
+          <Icon name="bookmark" size={13} style={{ color: 'var(--acc)', flex: 'none' }} />
+          <span className="pp-main">
+            <span className="pp-name">{p.name}</span>
+            {p.desc
+              ? <span className="pp-desc">{p.desc}</span>
+              : <span className="pp-line mono">{p.value}</span>}
+          </span>
+        </button>
+      ))}
+    </Popover>
+  );
+}
+
 /* ============ Row context menu ============ */
 interface RowMenuProps {
   anchor: AnchorRect;
@@ -111,6 +139,7 @@ function RowMenu({ anchor, game, onAction, onClose }: Readonly<RowMenuProps>) {
       <div className="pop-label" style={{ fontFamily: 'var(--mono)', textTransform: 'none', color: 'var(--tx-lo)' }}>{game.name}</div>
       <button className="pop-item" onClick={() => onAction('launch')}><Icon name="terminal" size={14} /><span style={{ flex: 1 }}>Set launch options…</span></button>
       <button className="pop-item" onClick={() => onAction('compat')}><Icon name="cpu" size={14} /><span style={{ flex: 1 }}>Set compatibility…</span></button>
+      <button className="pop-item" onClick={() => onAction('applyPreset')}><Icon name="bookmark" size={14} /><span style={{ flex: 1 }}>Apply preset…</span></button>
       <div className="pop-sep" />
       <button className="pop-item" onClick={() => onAction('copyLaunch')} disabled={!game.launch}><Icon name="copy" size={14} /><span style={{ flex: 1 }}>Copy launch string</span></button>
       <button className="pop-item" onClick={() => onAction('copyId')}><Icon name="copy" size={14} /><span style={{ flex: 1 }}>Copy AppID</span></button>
@@ -367,4 +396,4 @@ function EmptyState({ onRetry }: Readonly<{ onRetry: () => void }>) {
   );
 }
 
-export { CompatPicker, RowMenu, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState, Popover };
+export { CompatPicker, PresetPicker, RowMenu, SteamConfirm, SettingsSheet, WindowControls, Toasts, EmptyState, Popover };

@@ -255,11 +255,8 @@ interface PresetsListProps {
   onEdit: (p: Preset) => void;
   onDuplicate: (p: Preset) => void;
   onDelete: (p: Preset) => void;
-  onApply: (p: Preset) => void;
-  hasSelection: boolean;
-  selCount: number;
 }
-function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, hasSelection, selCount }: Readonly<PresetsListProps>) {
+function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete }: Readonly<PresetsListProps>) {
   return (
     <div className="page">
       <div className="page-inner" style={{ maxWidth: 880 }}>
@@ -294,7 +291,6 @@ function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete, onApply, h
                   <div className="pc-line mono"><MiniLine value={p.value} /></div>
                 </div>
                 <div className="pc-acts">
-                  {hasSelection && <button className="btn" style={{ height: 28 }} onClick={() => onApply(p)} title={`Apply to ${selCount} selected`}><Icon name="arrowRight" size={13} />Apply to {selCount}</button>}
                   <button className="icon-btn" title="Edit" onClick={() => onEdit(p)}><Icon name="edit" size={14} /></button>
                   <button className="icon-btn" title="Duplicate" onClick={() => onDuplicate(p)}><Icon name="copy" size={14} /></button>
                   <button className="icon-btn" title="Delete" onClick={() => onDelete(p)}><Icon name="trash" size={14} /></button>

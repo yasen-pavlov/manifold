@@ -197,11 +197,12 @@ describe("App - presets tab", () => {
     await waitFor(() => expect(called("save_presets").length).toBe(2));
   });
 
-  it("applies a preset to the current selection", async () => {
+  it("applies a preset to the selection via the bulk-bar picker", async () => {
     await renderApp();
     fireEvent.click(screen.getByText("Elden Ring"));
-    fireEvent.click(screen.getByRole("button", { name: /Presets/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Apply to 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply preset/ }));
+    // the preset picker opens; pick the seeded preset
+    fireEvent.click(await screen.findByText("Native HDR"));
     await waitFor(() => expect(called("set_launch_options").length).toBe(1));
   });
 });

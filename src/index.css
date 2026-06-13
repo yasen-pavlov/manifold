@@ -1061,3 +1061,13 @@ dialog.modal-host { display: contents; color: var(--tx-hi); }
 .mini-pill.tool { border-color: var(--acc-line); background: var(--acc-dim); color: var(--acc-text); }
 .mini-pill.cmd { border-color: var(--acc-line); color: var(--acc-text); font-weight: 600; }
 .mini-pill.arg { border-style: dashed; color: oklch(0.80 0.06 230); border-color: oklch(0.70 0.10 230 / 0.4); }
+
+/* ---------- apply-preset picker popover ---------- */
+.pop-empty { padding: 10px 12px 12px; font-size: 11.5px; color: var(--tx-faint); line-height: 1.5; }
+.pop-item.preset-pick { align-items: flex-start; gap: 8px; }
+.pop-item.preset-pick > svg { margin-top: 2px; }
+.pop-item.preset-pick .pp-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.pop-item.preset-pick .pp-name { font-size: 12.5px; color: var(--tx-hi); font-weight: 500; }
+.pop-item.preset-pick .pp-desc { font-size: 11px; color: var(--tx-lo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pop-item.preset-pick .pp-line { font-size: 10px; color: var(--tx-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pop-item.preset-pick:hover .pp-line { color: var(--tx-lo); }

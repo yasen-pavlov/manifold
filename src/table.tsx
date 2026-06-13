@@ -247,12 +247,13 @@ interface BulkBarProps {
   installedCount: number;
   ownedCount: number;
   onSetLaunch: () => void;
+  onApplyPreset: () => void;
   onSetCompat: () => void;
   onClearLaunch: () => void;
   onClear: () => void;
   disabled: boolean;
 }
-function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, onClearLaunch, onClear, disabled }: Readonly<BulkBarProps>) {
+function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onApplyPreset, onSetCompat, onClearLaunch, onClear, disabled }: Readonly<BulkBarProps>) {
   return (
     <div className="bulkbar">
       <div className="bulk-count">
@@ -267,6 +268,9 @@ function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onSetCompat, 
       </button>
       <button className="btn" onClick={onSetCompat} disabled={disabled}>
         <Icon name="cpu" size={14} />Set compatibility…
+      </button>
+      <button className="btn" onClick={onApplyPreset} disabled={disabled}>
+        <Icon name="bookmark" size={14} />Apply preset…
       </button>
       <button className="btn primary" onClick={onSetLaunch} disabled={disabled}>
         <Icon name="terminal" size={14} />Set launch options…

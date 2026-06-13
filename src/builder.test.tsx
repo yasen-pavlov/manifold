@@ -297,14 +297,14 @@ describe("PresetsList", () => {
     { id: "p2", name: "No desc", desc: "", value: "mangohud %command%" },
   ];
   it("renders each preset with its blocks and line", () => {
-    render(<PresetsList presets={presets} onNew={vi.fn()} onEdit={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onApply={vi.fn()} hasSelection={false} selCount={0} />);
+    render(<PresetsList presets={presets} onNew={vi.fn()} onEdit={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.getByText("Native HDR")).toBeInTheDocument();
     expect(screen.getByText("No description")).toBeInTheDocument();
     expect(document.querySelectorAll(".preset-card")).toHaveLength(2);
   });
   it("wires edit / duplicate / delete / new", () => {
     const onEdit = vi.fn(), onDuplicate = vi.fn(), onDelete = vi.fn(), onNew = vi.fn();
-    render(<PresetsList presets={presets} onNew={onNew} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} onApply={vi.fn()} hasSelection={false} selCount={0} />);
+    render(<PresetsList presets={presets} onNew={onNew} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />);
     fireEvent.click(screen.getByRole("button", { name: /New preset/ }));
     const firstCard = qs(".preset-card");
     fireEvent.click(within(firstCard).getByTitle("Edit"));
@@ -315,15 +315,8 @@ describe("PresetsList", () => {
     expect(onDuplicate).toHaveBeenCalled();
     expect(onDelete).toHaveBeenCalled();
   });
-  it("shows apply-to-selection only when there is a selection", () => {
-    const onApply = vi.fn();
-    render(<PresetsList presets={presets} onNew={vi.fn()} onEdit={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onApply={onApply} hasSelection selCount={3} />);
-    const applyBtn = screen.getAllByRole("button", { name: /Apply to 3/ })[0];
-    fireEvent.click(applyBtn);
-    expect(onApply).toHaveBeenCalled();
-  });
   it("renders an empty state", () => {
-    render(<PresetsList presets={[]} onNew={vi.fn()} onEdit={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onApply={vi.fn()} hasSelection={false} selCount={0} />);
+    render(<PresetsList presets={[]} onNew={vi.fn()} onEdit={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.getByText(/No presets yet/)).toBeInTheDocument();
   });
 });
