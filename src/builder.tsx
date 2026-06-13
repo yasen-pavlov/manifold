@@ -92,6 +92,66 @@ function addItemToPills(prev: Pill[], item: CatalogueItem): Pill[] {
   if (ex) return item.kind === 'toggle' ? prev.filter((p) => p.uid !== ex.uid) : prev;
   return insertPre(prev, makePill(item));
 }
+// append a game-arg chip after the %command% divider (adding the divider if missing)
+function addArgToPills(prev: Pill[], text: string): Pill[] {
+  const chip = makeArgPill(text);
+  return prev.some((p) => p.kind === 'command') ? [...prev, chip] : [...prev, makeCommandPill(), chip];
+}
+
+/* header subtitle - apply vs preset context */
+function BuilderHeaderSub({ isPreset, targetCount, mixedLines }: Readonly<{ isPreset: boolean; targetCount: number; mixedLines?: MixedLine[] }>) {
+  if (isPreset) return <span>A preset is a saved launch line. Compose it below.</span>;
+  return (
+    <>
+      <span>Applying to <b>{`${targetCount} game${targetCount === 1 ? '' : 's'}`}</b></span>
+      {mixedLines && mixedLines.length > 1 && <span className="mix-badge"><Icon name="alert" size={11} />mixed selection</span>}
+    </>
+  );
+}
+
+/* footer actions - differ between the preset and apply contexts */
+interface BuilderFooterProps {
+  isPreset: boolean;
+  context: BuilderContext;
+  name: string;
+  desc: string;
+  finalStr: string;
+  canSave: boolean;
+  canApply: boolean;
+  hasError: boolean;
+  targetCount: number;
+  pills: Pill[];
+  onClose: () => void;
+  onSavePreset: (p: PresetDraft) => void;
+  onApply: (val: string) => void;
+  onStartFromPreset?: (kind: string, pills: Pill[]) => void;
+}
+function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canApply, hasError, targetCount, pills, onClose, onSavePreset, onApply, onStartFromPreset }: Readonly<BuilderFooterProps>) {
+  if (isPreset) {
+    return (
+      <div className="builder-foot">
+        <div style={{ fontSize: 11.5, color: 'var(--tx-faint)', whiteSpace: 'nowrap' }}>{presetStatusHint(canSave, name, hasError)}</div>
+        <div className="bf-spacer" />
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={!canSave} onClick={() => onSavePreset({ id: context.preset?.id, name: name.trim(), desc: desc.trim(), value: finalStr })}>
+          <Icon name="save" size={14} />{context.preset?.id ? 'Save changes' : 'Save preset'}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="builder-foot">
+      <button className="btn ghost" onClick={() => onStartFromPreset?.('save', pills)} title="Save this line as a reusable preset" disabled={!canApply}>
+        <Icon name="bookmark" size={14} />Save as preset
+      </button>
+      <div className="bf-spacer" />
+      <button className="btn ghost" onClick={onClose}>Cancel</button>
+      <button className="btn primary" disabled={!canApply} onClick={() => onApply(finalStr)}>
+        <Icon name="check" size={14} />{`Apply to ${targetCount} game${targetCount === 1 ? '' : 's'}`}
+      </button>
+    </div>
+  );
+}
 
 /* ============================================================
    BUILDER SURFACE - shared between contexts
@@ -128,11 +188,7 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
   }, [rawMode]);
   const addCustom = bsC((tokenStr: string) => { setPills((prev) => insertPre(prev, makeCustomPill(tokenStr))); if (rawMode) setRawMode(false); }, [rawMode]);
   const addArg = bsC((text: string) => {
-    setPills((prev) => {
-      const chip = makeArgPill(text);
-      if (prev.some((p) => p.kind === 'command')) return [...prev, chip];
-      return [...prev, makeCommandPill(), chip];
-    });
+    setPills((prev) => addArgToPills(prev, text));
     if (rawMode) setRawMode(false);
   }, [rawMode]);
 
@@ -169,14 +225,7 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
             <div className="bh-titles">
               <div className="bh-title">{headerTitle}</div>
               <div className="bh-sub">
-                {isPreset ? (
-                  <span>A preset is a saved launch line. Compose it below.</span>
-                ) : (
-                  <>
-                    <span>Applying to <b>{`${targetCount} game${targetCount === 1 ? '' : 's'}`}</b></span>
-                    {mixedLines && mixedLines.length > 1 && <span className="mix-badge"><Icon name="alert" size={11} />mixed selection</span>}
-                  </>
-                )}
+                <BuilderHeaderSub isPreset={isPreset} targetCount={targetCount} mixedLines={mixedLines} />
               </div>
             </div>
             <button className="icon-btn" onClick={onClose} style={{ marginLeft: 'auto' }}><Icon name="x" size={15} /></button>
@@ -221,27 +270,11 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
             </div>
           </div>
 
-          {isPreset ? (
-            <div className="builder-foot">
-              <div style={{ fontSize: 11.5, color: 'var(--tx-faint)', whiteSpace: 'nowrap' }}>{presetStatusHint(canSave, name, hasError)}</div>
-              <div className="bf-spacer" />
-              <button className="btn ghost" onClick={onClose}>Cancel</button>
-              <button className="btn primary" disabled={!canSave} onClick={() => onSavePreset({ id: context.preset?.id, name: name.trim(), desc: desc.trim(), value: finalStr })}>
-                <Icon name="save" size={14} />{context.preset?.id ? 'Save changes' : 'Save preset'}
-              </button>
-            </div>
-          ) : (
-            <div className="builder-foot">
-              <button className="btn ghost" onClick={() => onStartFromPreset?.('save', pills)} title="Save this line as a reusable preset" disabled={!canApply}>
-                <Icon name="bookmark" size={14} />Save as preset
-              </button>
-              <div className="bf-spacer" />
-              <button className="btn ghost" onClick={onClose}>Cancel</button>
-              <button className="btn primary" disabled={!canApply} onClick={() => onApply(finalStr)}>
-                <Icon name="check" size={14} />{`Apply to ${targetCount} game${targetCount === 1 ? '' : 's'}`}
-              </button>
-            </div>
-          )}
+          <BuilderFooter
+            isPreset={isPreset} context={context} name={name} desc={desc} finalStr={finalStr}
+            canSave={canSave} canApply={canApply} hasError={hasError} targetCount={targetCount} pills={pills}
+            onClose={onClose} onSavePreset={onSavePreset} onApply={onApply} onStartFromPreset={onStartFromPreset}
+          />
         </div>
       </div>
     </dialog>
