@@ -2,9 +2,9 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction, MouseEvent as ReactMouseEvent } from "react";
 import { Icon } from "./icons";
-import { parseWrapper, HiLaunch, compatName, LIBRARY_PATH } from "./data";
+import { matchPresetForLaunch, HiLaunch, compatName, LIBRARY_PATH } from "./data";
 import type {
-  Game, GameStatus, Filters, Counts, FilterKey, SortState, CheckState,
+  Game, GameStatus, Filters, Counts, FilterKey, SortState, CheckState, Preset,
 } from "./types";
 
 /* ---------------- Checkbox ---------------- */
@@ -92,11 +92,12 @@ function StatusBadge({ status }: Readonly<{ status: GameStatus }>) {
   return <span className="badge owned"><span className="dot" />Owned-only</span>;
 }
 
-function WrapTag({ launch }: Readonly<{ launch: string }>) {
-  const w = parseWrapper(launch);
-  if (w === 'none') return null;
-  const labels: Record<string, string> = { gamescope: 'gamescope', xwayland: 'xwayland', native: 'native', other: 'env' };
-  return <span className={'wrap-tag ' + w}>{labels[w]}</span>;
+// Tag the game by the preset its launch line matches (pre-%command% segment), else "Custom".
+function PresetTag({ launch, presets }: Readonly<{ launch: string; presets: Preset[] }>) {
+  if (!launch.trim()) return null;
+  const match = matchPresetForLaunch(launch, presets);
+  if (match) return <span className="preset-tag matched" title={match.value}>{match.name}</span>;
+  return <span className="preset-tag custom">Custom</span>;
 }
 
 function LaunchCell({ value }: Readonly<{ value: string }>) {
@@ -112,6 +113,7 @@ type TipState = { value: string; x: number; y: number } | null;
 
 interface GameRowProps {
   game: Game;
+  presets: Preset[];
   selected: boolean;
   onToggle: (id: string) => void;
   onCompatClick: (e: ReactMouseEvent, g: Game) => void;
@@ -119,14 +121,14 @@ interface GameRowProps {
   onLaunchClick: (g: Game) => void;
   onTip: (e: ReactMouseEvent | null, value?: string) => void;
 }
-function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchClick, onTip }: Readonly<GameRowProps>) {
+function GameRow({ game, presets, selected, onToggle, onCompatClick, onRowMenu, onLaunchClick, onTip }: Readonly<GameRowProps>) {
   return (
     <tr className={selected ? 'sel' : ''} onClick={() => onToggle(game.id)}>
       <td className="col-check">
         <Check state={selected} onClick={() => onToggle(game.id)} />
       </td>
       <td className="col-name">
-        <div className="g-name">{game.name}<WrapTag launch={game.launch} /></div>
+        <div className="g-name">{game.name}<PresetTag launch={game.launch} presets={presets} /></div>
       </td>
       <td className="col-appid"><span className="g-appid">{game.appid}</span></td>
       <td className="col-status"><StatusBadge status={game.status} /></td>
@@ -163,6 +165,7 @@ function GameRow({ game, selected, onToggle, onCompatClick, onRowMenu, onLaunchC
 
 interface GamesTableProps {
   rows: Game[];
+  presets: Preset[];
   selected: Set<string>;
   sort: SortState;
   setSort: Dispatch<SetStateAction<SortState>>;
@@ -173,7 +176,7 @@ interface GamesTableProps {
   onRowMenu: (e: ReactMouseEvent, g: Game) => void;
   onLaunchClick: (g: Game) => void;
 }
-function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, headState, onCompatClick, onRowMenu, onLaunchClick }: Readonly<GamesTableProps>) {
+function GamesTable({ rows, presets, selected, sort, setSort, onToggle, onToggleAll, headState, onCompatClick, onRowMenu, onLaunchClick }: Readonly<GamesTableProps>) {
   const [tip, setTip] = useState<TipState>(null);
   const onTip = (e: ReactMouseEvent | null, value?: string) => {
     if (!e || value === undefined) { setTip(null); return; }
@@ -212,6 +215,7 @@ function GamesTable({ rows, selected, sort, setSort, onToggle, onToggleAll, head
             <GameRow
               key={game.id}
               game={game}
+              presets={presets}
               selected={selected.has(game.id)}
               onToggle={onToggle}
               onCompatClick={onCompatClick}
@@ -330,4 +334,4 @@ function Footer({ total, installed, shown, selected, steamRunning, steamBusy, on
   );
 }
 
-export { Toolbar, GamesTable, BulkBar, Footer, Check, StatusBadge, WrapTag };
+export { Toolbar, GamesTable, BulkBar, Footer, Check, StatusBadge, PresetTag };

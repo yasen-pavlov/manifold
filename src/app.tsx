@@ -2,7 +2,7 @@
 import { useState as aS, useEffect as aE, useMemo as aM, useCallback as aC } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./icons";
-import { GAMES, compatName, setCompatTools } from "./data";
+import { GAMES, MOCK_PRESETS, compatName, setCompatTools } from "./data";
 import { parseLine } from "./catalogue-data";
 import { BuilderSurface, PresetsList } from "./builder";
 import { Toolbar, GamesTable, BulkBar, Footer } from "./table";
@@ -369,7 +369,8 @@ function App() {
         if (cancelled || !store) return;
         setPresets(Array.isArray(store.presets) ? store.presets : []);
       } catch (e) {
-        // not under Tauri (e.g. vite preview) - keep the in-memory defaults
+        // not under Tauri (e.g. vite preview) - seed the example presets so the demo works
+        if (!cancelled) setPresets(MOCK_PRESETS.map((p) => ({ ...p })));
         logDev('load_presets unavailable:', e);
       }
     })();
@@ -484,7 +485,7 @@ function App() {
         <>
           <Toolbar search={search} setSearch={setSearch} filters={filters} toggleFilter={toggleFilter} counts={counts} onOpenCmdk={() => setCmdk(true)} />
           <GamesTable
-            rows={rows} selected={selected} sort={sort} setSort={setSort}
+            rows={rows} presets={presets} selected={selected} sort={sort} setSort={setSort}
             onToggle={toggle} onToggleAll={toggleAll} headState={headState}
             onCompatClick={(e, g) => { const r = e.currentTarget.getBoundingClientRect(); setCompatPop({ anchor: r, targets: [g] }); }}
             onRowMenu={(e, g) => { const r = e.currentTarget.getBoundingClientRect(); setRowMenu({ anchor: r, game: g }); }}

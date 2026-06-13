@@ -90,7 +90,7 @@ describe("App - launch options flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /Set launch options…/ }));
     // builder open (mixed selection -> empty line); add a wrapper to make it valid
     await screen.findByText("Set launch options");
-    fireEvent.click(catItem("Native (Wayland)"));
+    fireEvent.click(catItem("PROTON_ENABLE_HDR"));
     fireEvent.click(screen.getByRole("button", { name: /Apply to 2 games/ }));
     await waitFor(() => expect(called("set_launch_options").length).toBe(1));
     const changes = called("set_launch_options")[0][1].changes;
@@ -181,7 +181,7 @@ describe("App - presets tab", () => {
     const nameInput = await screen.findByPlaceholderText(/e\.g\. Native HDR/);
     await user.type(nameInput, "My Preset");
     // add a wrapper so the line is valid
-    fireEvent.click(catItem("Native (Wayland)"));
+    fireEvent.click(catItem("PROTON_ENABLE_HDR"));
     fireEvent.click(screen.getByRole("button", { name: /Save preset/ }));
     await waitFor(() => expect(called("save_presets").length).toBe(1));
   });

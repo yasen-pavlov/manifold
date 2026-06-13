@@ -78,32 +78,28 @@ fn item(id: &str, name: &str, desc: &str, value: &str) -> PresetItem {
     }
 }
 
+// Seeded on first run. These are GENERIC examples that show the building-block model; they are
+// deliberately not anyone's personal setup. Users compose + save their own in the builder.
 fn default_store() -> PresetStore {
     PresetStore {
         presets: vec![
             item(
-                "pre_hdr",
-                "Native HDR",
-                "Wayland-native HDR pipeline with the MangoHud overlay.",
-                "PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 mangohud %command%",
+                "ex_native",
+                "Native Wayland (HDR)",
+                "Wayland-native HDR pipeline.",
+                "PROTON_ENABLE_WAYLAND=1 PROTON_ENABLE_HDR=1 DXVK_HDR=1 %command%",
             ),
             item(
-                "pre_opti",
-                "OptiScaler (DLSS to FSR4)",
-                "Force FSR4 in DLSS/XeSS-only games via OptiScaler.",
-                "PROTON_USE_OPTISCALER=1 PROTON_DLSS_UPGRADE=1 game %command%",
+                "ex_mangohud",
+                "MangoHud overlay",
+                "Run under the MangoHud performance overlay.",
+                "mangohud %command%",
             ),
             item(
-                "pre_gs",
-                "Gamescope HDR",
-                "4K240 gamescope session with HDR and VRR.",
-                "PROTON_USE_NTSYNC=1 ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1 gamescope -W 3840 -H 2160 -r 240 -o 60 -f --adaptive-sync --hdr-enabled -- %command%",
-            ),
-            item(
-                "pre_perf",
-                "CachyOS performance",
-                "Performance power profile under GameMode, capped at 120.",
-                "DXVK_FRAME_RATE=120 game-performance gamemoderun game %command%",
+                "ex_gamescope",
+                "Gamescope 4K HDR",
+                "4K240 gamescope session, HDR and VRR, overlay via mangoapp.",
+                "ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1 gamescope -W 3840 -H 2160 -r 240 -o 60 -f --adaptive-sync --hdr-enabled --mangoapp -- %command%",
             ),
         ],
     }
@@ -191,7 +187,7 @@ mod tests {
         let (loaded, migrated) = read_store(&path).unwrap();
         assert!(!migrated, "a fresh new-shape file must not report a migration");
         assert_eq!(loaded.presets.len(), def.presets.len());
-        assert_eq!(loaded.presets[0].name, "Native HDR");
+        assert_eq!(loaded.presets[0].name, "Native Wayland (HDR)");
 
         // mutate + persist + reload
         let mut s = loaded;
