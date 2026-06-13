@@ -482,6 +482,27 @@ fn build_game(
     })
 }
 
+/// Non-Steam games from shortcuts.vdf, as GameDto rows (empty if the file is absent
+/// or unparseable). Launch options come from the file itself; compat is keyed by appid.
+fn scan_shortcuts(root: &Path, user_id: &str, compat: &BTreeMap<String, String>) -> Vec<GameDto> {
+    let Ok(bytes) = fs::read(shortcuts_path(root, user_id)) else { return Vec::new() };
+    crate::shortcuts::parse(&bytes)
+        .into_iter()
+        .map(|sc| {
+            let appid = sc.appid.to_string();
+            let name = if sc.name.trim().is_empty() { format!("App {appid}") } else { sc.name };
+            GameDto {
+                id: format!("app{appid}"),
+                compat: compat.get(&appid).cloned().unwrap_or_else(|| "default".into()),
+                appid,
+                name,
+                status: "shortcut".into(),
+                launch: sc.launch_options,
+            }
+        })
+        .collect()
+}
+
 pub fn scan() -> Result<LibraryDto, String> {
     let root = steam_root().ok_or("Steam installation not found")?;
     let libs = library_paths(&root);
@@ -527,24 +548,7 @@ pub fn scan() -> Result<LibraryDto, String> {
 
     // Non-Steam games (shortcuts.vdf). Their launch options live in that file, not
     // localconfig.vdf; their compat tool still comes from config.vdf, keyed by appid.
-    if let Ok(bytes) = fs::read(shortcuts_path(&root, &user_id)) {
-        for sc in crate::shortcuts::parse(&bytes) {
-            let appid = sc.appid.to_string();
-            let name = if sc.name.trim().is_empty() {
-                format!("App {appid}")
-            } else {
-                sc.name
-            };
-            games.push(GameDto {
-                id: format!("app{appid}"),
-                compat: compat.get(&appid).cloned().unwrap_or_else(|| "default".into()),
-                appid,
-                name,
-                status: "shortcut".into(),
-                launch: sc.launch_options,
-            });
-        }
-    }
+    games.extend(scan_shortcuts(&root, &user_id, &compat));
 
     // Ensure every compat name actually in use is offered in the picker / resolvable.
     let mut tools = compat_tools;
