@@ -21,9 +21,11 @@ test("opens the structured builder and validates the line", async ({ page }) => 
   // open the builder from the first game that has a launch line
   await page.locator(".launch-cell").first().click();
   await expect(page.locator(".builder")).toBeVisible();
-  // add a wrapper from the catalogue; the line becomes valid with one %command%
-  await page.locator(".builder-cat .cat-item", { hasText: "Native (Wayland)" }).click();
-  await expect(page.locator(".pill.is-wrapper")).toContainText("%command%");
+  // the %command% divider is fixed and always present
+  await expect(page.locator(".cmd-divider")).toContainText("%command%");
+  // add an env block from the catalogue; the line stays valid with one %command%
+  await page.locator(".builder-cat .cat-item", { hasText: "PROTON_ENABLE_HDR" }).first().click();
+  await expect(page.locator(".pill", { hasText: "PROTON_ENABLE_HDR" })).toBeVisible();
   await expect(page.locator(".vstat.ok")).toBeVisible();
 });
 
@@ -34,6 +36,16 @@ test("composes from the catalogue", async ({ page }) => {
   await expect(page.locator(".builder")).toBeVisible();
   await page.locator(".builder-cat .cat-item", { hasText: "DXVK_HUD" }).first().click();
   await expect(page.locator(".pill", { hasText: "DXVK_HUD" })).toBeVisible();
+});
+
+test("applies a preset from the bulk-bar picker", async ({ page }) => {
+  await page.goto("/");
+  // select a game, then open the Library-first preset picker from the bulk bar
+  await page.locator(".grid tbody tr").first().locator(".cbx").click();
+  await page.getByRole("button", { name: /Apply preset/ }).click();
+  const pop = page.locator(".popover");
+  await expect(pop).toContainText("Apply preset");
+  await expect(pop.locator(".pop-item.preset-pick").first()).toBeVisible();
 });
 
 test("navigates to the Presets and Backups tabs", async ({ page }) => {

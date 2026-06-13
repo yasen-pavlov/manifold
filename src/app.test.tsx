@@ -90,7 +90,7 @@ describe("App - launch options flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /Set launch options…/ }));
     // builder open (mixed selection -> empty line); add a wrapper to make it valid
     await screen.findByText("Set launch options");
-    fireEvent.click(catItem("Native (Wayland)"));
+    fireEvent.click(catItem("PROTON_ENABLE_HDR"));
     fireEvent.click(screen.getByRole("button", { name: /Apply to 2 games/ }));
     await waitFor(() => expect(called("set_launch_options").length).toBe(1));
     const changes = called("set_launch_options")[0][1].changes;
@@ -113,6 +113,36 @@ describe("App - launch options flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /Clear launch options/ }));
     await waitFor(() => expect(called("set_launch_options").length).toBe(1));
     expect(called("set_launch_options")[0][1].changes[0][1]).toBe("");
+  });
+
+  it("turns a 'Steam is running' write refusal into the close/reopen prompt + retry", async () => {
+    // Frontend thinks Steam is stopped (stale), but the backend refuses the first write.
+    let firstWrite = true;
+    invokeMock.mockImplementation(async (cmd: string) => {
+      switch (cmd) {
+        case "scan_library": return lib();
+        case "load_presets": return { presets: PRESETS };
+        case "load_settings": return SETTINGS;
+        case "get_system_scale": return 1;
+        case "discover_steam_roots": return [{ path: "/home/u/.steam/steam", valid: true }];
+        case "set_launch_options":
+          if (firstWrite) { firstWrite = false; throw "Steam is running - close it before writing"; }
+          return lib({ steam_running: false });
+        case "close_steam": return lib({ steam_running: false });
+        case "start_steam": return lib({ steam_running: true });
+        default: return undefined;
+      }
+    });
+    await renderApp();
+    fireEvent.click(screen.getByText("Elden Ring"));
+    fireEvent.click(screen.getByRole("button", { name: /Clear launch options/ }));
+    // not a dead-end "Write failed" - the Steam confirm dialog appears instead
+    fireEvent.click(await screen.findByRole("button", { name: /Close, apply & reopen/ }));
+    await waitFor(() => {
+      expect(called("close_steam").length).toBe(1);
+      expect(called("set_launch_options").length).toBe(2); // refused, then retried after close
+      expect(called("start_steam").length).toBe(1);
+    });
   });
 });
 
@@ -181,7 +211,7 @@ describe("App - presets tab", () => {
     const nameInput = await screen.findByPlaceholderText(/e\.g\. Native HDR/);
     await user.type(nameInput, "My Preset");
     // add a wrapper so the line is valid
-    fireEvent.click(catItem("Native (Wayland)"));
+    fireEvent.click(catItem("PROTON_ENABLE_HDR"));
     fireEvent.click(screen.getByRole("button", { name: /Save preset/ }));
     await waitFor(() => expect(called("save_presets").length).toBe(1));
   });
@@ -197,11 +227,12 @@ describe("App - presets tab", () => {
     await waitFor(() => expect(called("save_presets").length).toBe(2));
   });
 
-  it("applies a preset to the current selection", async () => {
+  it("applies a preset to the selection via the bulk-bar picker", async () => {
     await renderApp();
     fireEvent.click(screen.getByText("Elden Ring"));
-    fireEvent.click(screen.getByRole("button", { name: /Presets/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Apply to 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply preset/ }));
+    // the preset picker opens; pick the seeded preset
+    fireEvent.click(await screen.findByText("Native HDR"));
     await waitFor(() => expect(called("set_launch_options").length).toBe(1));
   });
 });

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { Toolbar, GamesTable, BulkBar, Footer, Check, StatusBadge, WrapTag } from "./table";
+import { Toolbar, GamesTable, BulkBar, Footer, Check, StatusBadge, PresetTag } from "./table";
 import type { Mock } from "vitest";
-import type { Game, SortState, CheckState } from "./types";
+import type { Game, Preset, SortState, CheckState } from "./types";
 
 const qs = (sel: string): HTMLElement => {
   const el = document.querySelector<HTMLElement>(sel);
@@ -11,9 +11,10 @@ const qs = (sel: string): HTMLElement => {
 };
 
 const ROWS: Game[] = [
-  { id: "g1", name: "Elden Ring", appid: "1245620", status: "installed", compat: "default", launch: "PROTON_ENABLE_HDR=1 game %command%" },
+  { id: "g1", name: "Elden Ring", appid: "1245620", status: "installed", compat: "default", launch: "PROTON_ENABLE_HDR=1 %command%" },
   { id: "g2", name: "Stellaris", appid: "281990", status: "owned", compat: "exp", launch: "" },
 ];
+const PRESETS: Preset[] = [{ id: "ex_mangohud", name: "MangoHud overlay", desc: "", value: "mangohud %command%" }];
 
 describe("Check", () => {
   it("renders unchecked / checked / dash and stops propagation", () => {
@@ -29,18 +30,22 @@ describe("Check", () => {
   });
 });
 
-describe("StatusBadge + WrapTag", () => {
+describe("StatusBadge + PresetTag", () => {
   it("renders installed and owned badges", () => {
     const { rerender } = render(<StatusBadge status="installed" />);
     expect(screen.getByText("Installed")).toBeInTheDocument();
     rerender(<StatusBadge status="owned" />);
     expect(screen.getByText("Owned-only")).toBeInTheDocument();
   });
-  it("renders a wrap tag only for non-none wrappers", () => {
-    const { container, rerender } = render(<WrapTag launch="gamescope -- %command%" />);
-    expect(container.querySelector(".wrap-tag")).toHaveTextContent("gamescope");
-    rerender(<WrapTag launch="" />);
-    expect(container.querySelector(".wrap-tag")).toBeNull();
+  it("tags a matching launch with the preset name, ignoring trailing game args", () => {
+    const { container } = render(<PresetTag launch="mangohud %command% -novid" presets={PRESETS} />);
+    expect(container.querySelector(".preset-tag.matched")).toHaveTextContent("MangoHud overlay");
+  });
+  it("tags a non-matching launch as Custom and renders nothing for empty", () => {
+    const { container, rerender } = render(<PresetTag launch="PROTON_LOG=1 %command%" presets={PRESETS} />);
+    expect(container.querySelector(".preset-tag.custom")).toHaveTextContent("Custom");
+    rerender(<PresetTag launch="" presets={PRESETS} />);
+    expect(container.querySelector(".preset-tag")).toBeNull();
   });
 });
 
@@ -74,6 +79,7 @@ describe("Toolbar", () => {
 describe("GamesTable", () => {
   const props = (over: Partial<Parameters<typeof GamesTable>[0]> = {}) => ({
     rows: ROWS,
+    presets: PRESETS,
     selected: new Set(["g1"]),
     sort: { col: "name", dir: "asc" } as SortState,
     setSort: vi.fn(),
@@ -142,21 +148,23 @@ describe("BulkBar", () => {
   it("renders counts and wires the actions", () => {
     const p = {
       count: 3, installedCount: 2, ownedCount: 1,
-      onSetLaunch: vi.fn(), onSetCompat: vi.fn(), onClearLaunch: vi.fn(), onClear: vi.fn(), disabled: false,
+      onSetLaunch: vi.fn(), onApplyPreset: vi.fn(), onSetCompat: vi.fn(), onClearLaunch: vi.fn(), onClear: vi.fn(), disabled: false,
     };
     render(<BulkBar {...p} />);
     expect(screen.getByText(/installed/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Set launch options/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply preset/ }));
     fireEvent.click(screen.getByRole("button", { name: /Set compatibility/ }));
     fireEvent.click(screen.getByRole("button", { name: /Clear launch options/ }));
     fireEvent.click(screen.getByRole("button", { name: /Deselect/ }));
     expect(p.onSetLaunch).toHaveBeenCalled();
+    expect(p.onApplyPreset).toHaveBeenCalled();
     expect(p.onSetCompat).toHaveBeenCalled();
     expect(p.onClearLaunch).toHaveBeenCalled();
     expect(p.onClear).toHaveBeenCalled();
   });
   it("disables write actions when disabled", () => {
-    render(<BulkBar count={1} installedCount={1} ownedCount={0} onSetLaunch={vi.fn()} onSetCompat={vi.fn()} onClearLaunch={vi.fn()} onClear={vi.fn()} disabled />);
+    render(<BulkBar count={1} installedCount={1} ownedCount={0} onSetLaunch={vi.fn()} onApplyPreset={vi.fn()} onSetCompat={vi.fn()} onClearLaunch={vi.fn()} onClear={vi.fn()} disabled />);
     expect(screen.getByRole("button", { name: /Set launch options/ })).toBeDisabled();
   });
 });
