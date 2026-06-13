@@ -73,7 +73,7 @@ body {
    its own padding/background/border. */
 .scrim,
 .cat-item, .cmdk-item, .mixed-row, .ep-choice,
-.launch-click, .foot-state {
+.launch-click, .foot-state, .pill .pbody.clickable {
   appearance: none; -webkit-appearance: none;
   margin: 0; border: 0; background: none;
   font: inherit; color: inherit; text-align: left;
@@ -719,7 +719,7 @@ dialog.modal-host { display: contents; color: var(--tx-hi); }
 .pill.cat-tool { border-color: oklch(0.55 0.02 276); }
 .pill.cat-tool .pkey { color: oklch(0.84 0.10 162); }
 .pill.cat-custom { border-style: dashed; }
-.pill.cat-custom .pkey { color: var(--tx-mid); }
+.pill.cat-custom .pkey { color: var(--tx-mid); overflow: visible; text-overflow: clip; }
 
 /* wrapper pill — distinct, pinned */
 .pill.is-wrapper {
@@ -865,7 +865,6 @@ dialog.modal-host { display: contents; color: var(--tx-hi); }
 .gs-flag label { font-size: 10.5px; color: var(--tx-lo); font-family: var(--mono); }
 .gs-flag input { height: 26px; padding: 0 8px; background: var(--bg-inset); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--tx-hi); font-family: var(--mono); font-size: 11.5px; }
 .gs-flag input:focus { outline: none; border-color: var(--acc-line); box-shadow: 0 0 0 2px var(--acc-dim); }
-.gs-toggle { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; min-width: 0; }
 .gs-toggle .gst-box { width: 32px; height: 18px; border-radius: 10px; background: var(--bg-inset); border: 1px solid var(--line-strong); position: relative; transition: all .12s; flex: none; }
 .gs-toggle .gst-box::after { content: ''; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--tx-lo); transition: all .12s; }
 .gs-toggle.on .gst-box { background: var(--acc); border-color: var(--acc); }
@@ -908,9 +907,6 @@ dialog.modal-host { display: contents; color: var(--tx-hi); }
 .preset-tag.matched { color: var(--acc-text); border-color: var(--acc-line); background: var(--acc-dim); }
 .preset-tag.custom { color: var(--tx-faint); background: var(--bg-inset); }
 
-/* custom pills carry short literal tokens - don't truncate them to "ga…" */
-.pill.cat-custom .pkey { overflow: visible; text-overflow: clip; }
-
 /* catalogue rows + arg-picker entries are real <button>s in the rework - reset the UA button
    appearance (WebKitGTK paints buttonface ~ #e9e9ed) so resting rows stay transparent on the
    dark theme; the :hover / .added / .on rules below still paint their own backgrounds. */
@@ -928,7 +924,7 @@ dialog.modal-host { display: contents; color: var(--tx-hi); }
 }
 .pill-line.two-zone.drag-active { border-color: var(--acc-line); }
 .zone { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; align-content: flex-start; }
-.zone-pre { padding: 11px 12px; min-height: 50px; }
+.zone-pre { padding: 11px 12px; min-height: 50px; margin: 0; list-style: none; }
 .zone-empty { display: inline-flex; align-items: center; gap: 7px; color: var(--tx-faint); font-size: 12px; padding: 5px 2px; }
 .zone-empty svg { color: var(--tx-lo); }
 

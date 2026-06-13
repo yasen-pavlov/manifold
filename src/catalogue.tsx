@@ -70,7 +70,10 @@ function Catalogue({ pills, onAdd, onAddCustom, onAddArg }: Readonly<CataloguePr
   const grouped = cgM(() => {
     const order = CATEGORIES.map((c) => c.id);
     const m: Record<string, CatalogueItem[]> = {};
-    filtered.forEach((c) => { (m[c.cat] = m[c.cat] || []).push(c); });
+    filtered.forEach((c) => {
+      if (!m[c.cat]) m[c.cat] = [];
+      m[c.cat].push(c);
+    });
     return order.filter((id) => m[id]).map((id) => ({ cat: CATEGORIES.find((c) => c.id === id) as Category, items: m[id] }));
   }, [filtered]);
 

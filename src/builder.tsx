@@ -76,6 +76,23 @@ function MixedLines({ mixedLines, targetCount }: Readonly<{ mixedLines: MixedLin
   );
 }
 
+// insert an env/tool pill just before the %command% divider
+function insertPre(prev: Pill[], pill: Pill): Pill[] {
+  const ci = prev.findIndex((p) => p.kind === 'command');
+  if (ci === -1) return [...prev, pill, makeCommandPill()];
+  return [...prev.slice(0, ci), pill, ...prev.slice(ci)];
+}
+// add a catalogue item: a tool/toggle already in the line toggles off, otherwise insert before %command%
+function addItemToPills(prev: Pill[], item: CatalogueItem): Pill[] {
+  if (item.kind === 'tool') {
+    const ex = prev.find((p): p is ToolPill => p.kind === 'tool' && p.toolId === item.toolId);
+    return ex ? prev.filter((p) => p.uid !== ex.uid) : insertPre(prev, makePill(item));
+  }
+  const ex = prev.find((p) => p.itemId === item.id);
+  if (ex) return item.kind === 'toggle' ? prev.filter((p) => p.uid !== ex.uid) : prev;
+  return insertPre(prev, makePill(item));
+}
+
 /* ============================================================
    BUILDER SURFACE - shared between contexts
    ============================================================ */
@@ -92,7 +109,7 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
   const isPreset = context.mode === 'preset';
 
   const [pills, setPills] = bsS<Pill[]>(() =>
-    context.initialPills && context.initialPills.length
+    context.initialPills?.length
       ? context.initialPills.map((p) => ({ ...p, uid: nextUid() }))
       : parseLine(''));
   const [rawMode, setRawMode] = bsS(false);
@@ -105,23 +122,8 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
   const validation = bsM(() => validateLine(finalStr, pills), [finalStr, pills]);
   const setPillsAndExitRaw = (next: Pill[]) => { setPills(next); if (rawMode) setRawMode(false); };
 
-  // insert an env/tool pill just before the %command% divider
-  const insertPre = (prev: Pill[], pill: Pill): Pill[] => {
-    const ci = prev.findIndex((p) => p.kind === 'command');
-    if (ci === -1) return [...prev, pill, makeCommandPill()];
-    return [...prev.slice(0, ci), pill, ...prev.slice(ci)];
-  };
   const addItem = bsC((item: CatalogueItem) => {
-    setPills((prev) => {
-      if (item.kind === 'tool') {
-        const ex = prev.find((p): p is ToolPill => p.kind === 'tool' && p.toolId === item.toolId);
-        if (ex) return prev.filter((p) => p.uid !== ex.uid);
-        return insertPre(prev, makePill(item));
-      }
-      const ex = prev.find((p) => p.itemId === item.id);
-      if (ex) { if (item.kind === 'toggle') return prev.filter((p) => p.uid !== ex.uid); return prev; }
-      return insertPre(prev, makePill(item));
-    });
+    setPills((prev) => addItemToPills(prev, item));
     if (rawMode) setRawMode(false);
   }, [rawMode]);
   const addCustom = bsC((tokenStr: string) => { setPills((prev) => insertPre(prev, makeCustomPill(tokenStr))); if (rawMode) setRawMode(false); }, [rawMode]);
@@ -274,12 +276,15 @@ function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete }: Readonly
           const parsed = parseLine(p.value);
           const blocks = parsed.filter((x) => x.kind !== 'command' && x.kind !== 'arg');
           const args = parsed.filter((x): x is Extract<Pill, { kind: 'arg' }> => x.kind === 'arg');
+          const blockMeta = `${blocks.length} block${blocks.length === 1 ? '' : 's'}`;
+          let argMeta = '';
+          if (args.length) argMeta = ` · ${args.length} arg${args.length === 1 ? '' : 's'}`;
           return (
             <div className="preset-card" key={p.id}>
               <div className="pc-row">
                 <div className="pc-ico"><Icon name="bookmark" size={15} /></div>
                 <div className="pc-main">
-                  <div className="pc-name">{p.name}<span className="pc-pillct">{blocks.length} block{blocks.length === 1 ? '' : 's'}{args.length ? ` · ${args.length} arg${args.length === 1 ? '' : 's'}` : ''}</span></div>
+                  <div className="pc-name">{p.name}<span className="pc-pillct">{blockMeta}{argMeta}</span></div>
                   <div className="pc-desc">{p.desc || <span style={{ color: 'var(--tx-faint)' }}>No description</span>}</div>
                   <div className="pc-mini">
                     {blocks.map((b) => (

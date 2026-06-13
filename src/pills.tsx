@@ -211,9 +211,9 @@ function ToolPopover({ anchor, pill, onChange, onClose }: Readonly<{ anchor: Anc
 function EnvPill({ pill, flag, onClick, onRemove }: Readonly<{ pill: Pill; flag?: Issue; onClick: ClickHandler; onRemove: () => void }>) {
   let body;
   if (pill.kind === 'choice') {
-    body = (<span className="pbody clickable" role="button" tabIndex={0} onClick={onClick} onKeyDown={keyActivate(onClick)}><span className="pkey">{pill.key}</span><span className="peq">=</span><span className="pval">{pill.value}</span><span className="pchev"><Icon name="chevronDown" size={12} /></span></span>);
+    body = (<button type="button" className="pbody clickable" onClick={onClick}><span className="pkey">{pill.key}</span><span className="peq">=</span><span className="pval">{pill.value}</span><span className="pchev"><Icon name="chevronDown" size={12} /></span></button>);
   } else if (pill.kind === 'input') {
-    body = (<span className="pbody clickable" role="button" tabIndex={0} onClick={onClick} onKeyDown={keyActivate(onClick)}><span className="pkey">{pill.key}</span><span className="peq">=</span><span className="pval">{pill.value === '' ? <span style={{ color: 'var(--tx-faint)' }}>(empty)</span> : pill.value}</span><span className="pchev"><Icon name="edit" size={11} /></span></span>);
+    body = (<button type="button" className="pbody clickable" onClick={onClick}><span className="pkey">{pill.key}</span><span className="peq">=</span><span className="pval">{pill.value === '' ? <span style={{ color: 'var(--tx-faint)' }}>(empty)</span> : pill.value}</span><span className="pchev"><Icon name="edit" size={11} /></span></button>);
   } else if (pill.kind === 'toggle') {
     const [k, v] = pill.token.split('=');
     body = <span className="pbody"><span className="pkey">{k}</span><span className="peq">={v}</span></span>;
@@ -221,11 +221,11 @@ function EnvPill({ pill, flag, onClick, onRemove }: Readonly<{ pill: Pill; flag?
     body = <span className="pbody"><span className="pkey">{(pill as { token?: string }).token}</span><span className="ptag">custom</span></span>;
   }
   return (
-    <span className={'pill cat-' + pill.cat + (flag ? ' invalid' : '')} title={flag?.msg || ''}>
+    <li className={'pill cat-' + pill.cat + (flag ? ' invalid' : '')} title={flag?.msg || ''}>
       {body}
       {flag && <span className="pwarn" title={flag.msg}><Icon name="alert" size={12} /></span>}
       <button type="button" className="px" onClick={onRemove} title="Remove" aria-label={`Remove ${pill.name}`}><Icon name="x" size={12} /></button>
-    </span>
+    </li>
   );
 }
 
@@ -242,22 +242,22 @@ function ToolPillView({ pill, flag, pinned, onSettings, onRemove, onMove, dnd }:
     else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onRemove(); }
   };
   return (
-    <span
+    <li
       className={'pill pill-tool cat-tools' + (flag ? ' invalid' : '') + (pinned ? ' pinned-last' : '') + (dnd.dragging ? ' dragging' : '') + (dnd.over ? ' drop-target' : '')}
       onDragEnter={dnd.onDragEnter} onDragOver={(e) => e.preventDefault()} title={flag?.msg || ''}
     >
       {pinned
         ? <span className="pw-lock" title="Pinned last: gamescope owns the trailing -- terminator"><Icon name="lock" size={11} /></span>
         : <button type="button" className="pgrip" draggable aria-label={`${tool.name} - drag, arrow keys to reorder, Delete to remove`} onDragStart={dnd.onDragStart} onDragEnd={dnd.onDragEnd} onKeyDown={onGripKey}><Icon name="grip" size={13} /></button>}
-      <span className="pbody clickable" role="button" tabIndex={0} onClick={onSettings} onKeyDown={keyActivate(onSettings)}>
+      <button type="button" className="pbody clickable" onClick={onSettings}>
         <span className="pt-ico"><Icon name={tool.icon} size={13} /></span>
         <span className="pkey">{tool.name}</span>
         {summary && <span className="pt-summary">{summary}</span>}
         <span className="pt-gear"><Icon name="settings" size={12} /></span>
-      </span>
+      </button>
       {flag && <span className="pwarn" title={flag.msg}><Icon name="alert" size={12} /></span>}
       <button type="button" className="px" onClick={onRemove} title="Remove" aria-label={`Remove ${tool.name}`}><Icon name="x" size={12} /></button>
-    </span>
+    </li>
   );
 }
 
@@ -301,7 +301,7 @@ function ArgsInserter({ onPick, onClose }: Readonly<{ onPick: (a: GameArg) => vo
 function PostZone({ args, onAdd, onRemove }: Readonly<{ args: Pill[]; onAdd: (texts: string[]) => void; onRemove: (uid: string) => void }>) {
   const [text, setText] = plS('');
   const [showInserter, setShowInserter] = plS(false);
-  const commit = (raw: string) => { const toks = tokenizeArgs(raw); if (toks.length) onAdd(toks); setText(''); };
+  const commit = (raw: string) => { const toks = tokenizeArgs(raw); if (toks.length) { onAdd(toks); } setText(''); };
   const onKey = (e: ReactKeyboardEvent) => {
     if ((e.key === 'Enter' || e.key === ' ') && text.trim()) { e.preventDefault(); commit(text); }
     else if (e.key === 'Backspace' && !text && args.length) onRemove(args[args.length - 1].uid);
@@ -343,7 +343,7 @@ function PillLine({ pills, flagged, onChange }: Readonly<{ pills: Pill[]; flagge
   const rebuild = (nextPre: Pill[], nextPost: Pill[]) => onChange([...nextPre, cmd, ...nextPost]);
   const removePre = (uid: string) => rebuild(pre.filter((p) => p.uid !== uid), post);
   const removeArg = (uid: string) => rebuild(pre, post.filter((p) => p.uid !== uid));
-  const updatePill = (uid: string, patch: Record<string, unknown>) => onChange(pills.map((p) => (p.uid === uid ? ({ ...p, ...patch } as Pill) : p)));
+  const updatePill = (uid: string, patch: Record<string, unknown>) => onChange(pills.map((p) => (p.uid === uid ? { ...p, ...patch } : p)));
   const addArgs = (texts: string[]) => rebuild(pre, [...post, ...texts.map((t) => makeArgPill(t))]);
 
   const openEditor = (uid: string, e: ReactMouseEvent | ReactKeyboardEvent) => {
@@ -378,9 +378,9 @@ function PillLine({ pills, flagged, onChange }: Readonly<{ pills: Pill[]; flagge
   return (
     <div className="zone-wrap">
       <div className={'pill-line two-zone' + (drag.from ? ' drag-active' : '')} aria-label="Launch line">
-        <div className="zone zone-pre">
+        <ul className="zone zone-pre">
           {isEmpty ? (
-            <span className="zone-empty"><Icon name="plus" size={13} /> add env vars &amp; tools from the catalogue</span>
+            <li className="zone-empty"><Icon name="plus" size={13} /> add env vars &amp; tools from the catalogue</li>
           ) : (
             <>
               {envPills.map((p) => (
@@ -393,7 +393,7 @@ function PillLine({ pills, flagged, onChange }: Readonly<{ pills: Pill[]; flagge
               ))}
             </>
           )}
-        </div>
+        </ul>
 
         <CommandDivider />
 
