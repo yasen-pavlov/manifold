@@ -114,7 +114,7 @@ export interface GameArgGroup { group: string; args: GameArg[]; }
 /* ============================================================
    LIBRARY (mirrors the Rust backend DTOs)
    ============================================================ */
-export type GameStatus = 'installed' | 'owned';
+export type GameStatus = 'installed' | 'owned' | 'shortcut';
 
 export interface Game {
   id: string;
@@ -238,7 +238,7 @@ export type Change = [string, string];
 /* ============================================================
    TABLE: filtering + sorting
    ============================================================ */
-export type FilterKey = 'installed' | 'owned' | 'custom' | 'forced';
+export type FilterKey = 'installed' | 'owned' | 'shortcut' | 'custom' | 'forced';
 export type Filters = Record<FilterKey, boolean>;
 export type Counts = Record<FilterKey, number>;
 

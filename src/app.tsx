@@ -11,7 +11,7 @@ import { BackupsView, CommandPalette } from "./presets";
 import type { RowAction, SteamChoice } from "./surfaces";
 import type {
   AnchorRect, Backup, BuilderContext, Change, Command, Counts, DiscoveredRoot, Filters,
-  Game, LibraryDto, MixedLine, Pill, Preset, PresetDraft, Settings, SortState, Toast,
+  Game, GameStatus, LibraryDto, MixedLine, Pill, Preset, PresetDraft, Settings, SortState, Toast,
   UndoAction, WindowControlsPref,
 } from "./types";
 
@@ -66,7 +66,7 @@ function App() {
 
   const [selected, setSelected] = aS<Set<string>>(() => new Set());
   const [search, setSearch] = aS('');
-  const [filters, setFilters] = aS<Filters>({ installed: false, owned: false, custom: false, forced: false });
+  const [filters, setFilters] = aS<Filters>({ installed: false, owned: false, shortcut: false, custom: false, forced: false });
   const [sort, setSort] = aS<SortState>({ col: 'name', dir: 'asc' });
   const [tab, setTab] = aS('library');
 
@@ -102,6 +102,7 @@ function App() {
   const counts: Counts = aM(() => ({
     installed: games.filter((g) => g.status === 'installed').length,
     owned: games.filter((g) => g.status === 'owned').length,
+    shortcut: games.filter((g) => g.status === 'shortcut').length,
     custom: games.filter((g) => g.launch.trim()).length,
     forced: games.filter((g) => g.compat !== 'default').length,
   }), [games]);
@@ -112,6 +113,7 @@ function App() {
     if (q) r = r.filter((g) => g.name.toLowerCase().includes(q) || g.appid.includes(q) || g.launch.toLowerCase().includes(q));
     if (filters.installed) r = r.filter((g) => g.status === 'installed');
     if (filters.owned) r = r.filter((g) => g.status === 'owned');
+    if (filters.shortcut) r = r.filter((g) => g.status === 'shortcut');
     if (filters.custom) r = r.filter((g) => g.launch.trim());
     if (filters.forced) r = r.filter((g) => g.compat !== 'default');
     const dir = sort.dir === 'asc' ? 1 : -1;
@@ -120,7 +122,8 @@ function App() {
       appid: (a, b) => Number(a.appid) - Number(b.appid),
       status: (a, b) => {
         if (a.status === b.status) return a.name.localeCompare(b.name);
-        return a.status === 'installed' ? -1 : 1;
+        const rank: Record<GameStatus, number> = { installed: 0, shortcut: 1, owned: 2 };
+        return rank[a.status] - rank[b.status];
       },
       compat: (a, b) => compatName(a.compat).localeCompare(compatName(b.compat)),
     };
@@ -511,6 +514,7 @@ function App() {
               count={targets.length}
               installedCount={targets.filter((t) => t.status === 'installed').length}
               ownedCount={targets.filter((t) => t.status === 'owned').length}
+              shortcutCount={targets.filter((t) => t.status === 'shortcut').length}
               onSetLaunch={() => openBuilderFor(targets)}
               onApplyPreset={() => setPresetPop({ anchor: centerAnchor(), targets })}
               onSetCompat={() => setCompatPop({ anchor: centerAnchor(), targets })}

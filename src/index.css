@@ -295,6 +295,8 @@ table.grid { width: 100%; border-collapse: separate; border-spacing: 0; }
 .badge.installed .dot { background: var(--ok); }
 .badge.owned { background: var(--bg-2); color: var(--tx-lo); border-color: var(--line); }
 .badge.owned .dot { background: var(--tx-faint); box-shadow: 0 0 0 1.5px var(--bg-inset) inset; border: 1px solid var(--tx-faint); }
+.badge.shortcut { background: oklch(0.70 0.12 250 / 0.15); color: oklch(0.82 0.10 250); border-color: oklch(0.70 0.12 250 / 0.32); }
+.badge.shortcut .dot { background: oklch(0.70 0.12 250); }
 
 /* wrapper tag */
 .wrap-tag {

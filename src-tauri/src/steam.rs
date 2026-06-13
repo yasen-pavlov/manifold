@@ -34,7 +34,7 @@ pub struct GameDto {
     pub id: String,     // "app<appid>"
     pub appid: String,
     pub name: String,
-    pub status: String, // "installed" | "owned"
+    pub status: String, // "installed" | "owned" | "shortcut" (non-Steam game)
     pub compat: String, // internal compat-tool name, or "default"
     pub launch: String, // LaunchOptions string ("" if none)
 }
@@ -157,6 +157,11 @@ fn find_localconfig(root: &Path) -> Option<(String, PathBuf)> {
         }
     }
     best
+}
+
+/// userdata/<id>/config/shortcuts.vdf - the user's non-Steam game entries.
+fn shortcuts_path(root: &Path, user_id: &str) -> PathBuf {
+    root.join("userdata").join(user_id).join("config/shortcuts.vdf")
 }
 
 /// All library paths from libraryfolders.vdf (plus the root itself).
@@ -392,6 +397,19 @@ pub(crate) fn build_test_tree(home: &Path) -> PathBuf {
         "\"UserLocalConfigStore\"\n{\n\t\"Software\"\n\t{\n\t\t\"Valve\"\n\t\t{\n\t\t\t\"Steam\"\n\t\t\t{\n\t\t\t\t\"apps\"\n\t\t\t\t{\n\t\t\t\t\t\"111\"\n\t\t\t\t\t{\n\t\t\t\t\t\t\"LaunchOptions\"\t\t\"mangohud %command%\"\n\t\t\t\t\t}\n\t\t\t\t\t\"222\"\n\t\t\t\t\t{\n\t\t\t\t\t\t\"LaunchOptions\"\t\t\"gamescope %command%\"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n",
     )
     .unwrap();
+
+    // One non-Steam shortcut (appid 2338049609, in the 2^31 range). Binary VDF; its
+    // launch options live here, not in localconfig.vdf.
+    let mut sc = Vec::new();
+    sc.extend_from_slice(b"\x00shortcuts\x00\x000\x00");
+    sc.extend_from_slice(b"\x02appid\x00");
+    sc.extend_from_slice(&(2_338_049_609u32 as i32).to_le_bytes());
+    sc.extend_from_slice(b"\x01appname\x00DoomRunner\x00");
+    sc.extend_from_slice(b"\x01LaunchOptions\x00gamescope %command%\x00");
+    sc.extend_from_slice(b"\x00tags\x00\x08"); // empty tags map
+    sc.extend_from_slice(b"\x08\x08\x08"); // end entry / shortcuts / root
+    fs::write(root.join("userdata/123/config/shortcuts.vdf"), &sc).unwrap();
+
     root
 }
 
@@ -507,6 +525,27 @@ pub fn scan() -> Result<LibraryDto, String> {
         .filter_map(|appid| build_game(appid, &installed, &launch, &compat, &resolved))
         .collect();
 
+    // Non-Steam games (shortcuts.vdf). Their launch options live in that file, not
+    // localconfig.vdf; their compat tool still comes from config.vdf, keyed by appid.
+    if let Ok(bytes) = fs::read(shortcuts_path(&root, &user_id)) {
+        for sc in crate::shortcuts::parse(&bytes) {
+            let appid = sc.appid.to_string();
+            let name = if sc.name.trim().is_empty() {
+                format!("App {appid}")
+            } else {
+                sc.name
+            };
+            games.push(GameDto {
+                id: format!("app{appid}"),
+                compat: compat.get(&appid).cloned().unwrap_or_else(|| "default".into()),
+                appid,
+                name,
+                status: "shortcut".into(),
+                launch: sc.launch_options,
+            });
+        }
+    }
+
     // Ensure every compat name actually in use is offered in the picker / resolvable.
     let mut tools = compat_tools;
     for g in &games {
@@ -560,6 +599,10 @@ fn timestamped_backup(src: &Path) -> Result<PathBuf, String> {
 }
 
 fn atomic_write(path: &Path, contents: &str) -> Result<(), String> {
+    atomic_write_bytes(path, contents.as_bytes())
+}
+
+fn atomic_write_bytes(path: &Path, contents: &[u8]) -> Result<(), String> {
     let dir = path.parent().ok_or("target has no parent directory")?;
     let tmp = dir.join(format!(".manifold.tmp.{}", std::process::id()));
     fs::write(&tmp, contents).map_err(|e| format!("write temp file: {e}"))?;
@@ -583,18 +626,41 @@ fn guard_steam_closed() -> Result<(), String> {
     Ok(())
 }
 
-/// Apply LaunchOptions changes (appid -> value) to localconfig.vdf.
+/// True for non-Steam shortcut appids (Steam assigns these the high 2^31 bit). Their
+/// launch options live in shortcuts.vdf, not localconfig.vdf.
+fn is_shortcut_appid(appid: &str) -> bool {
+    appid.parse::<u64>().map(|n| n >= 2_147_483_648).unwrap_or(false)
+}
+
+/// Apply LaunchOptions changes (appid -> value). Real Steam games are written to
+/// localconfig.vdf; non-Steam shortcuts are written to shortcuts.vdf. A batch may mix
+/// both - each half goes to its own file under one Steam-closed guard.
 pub fn write_launch_options(changes: Vec<(String, String)>) -> Result<LibraryDto, String> {
     if changes.is_empty() {
         return scan();
     }
     guard_steam_closed()?;
     let root = steam_root().ok_or("Steam installation not found")?;
-    let (_user, localconfig) = find_localconfig(&root).ok_or("localconfig.vdf not found")?;
-    let original = fs::read_to_string(&localconfig).map_err(|e| format!("read localconfig.vdf: {e}"))?;
+    let (user_id, localconfig) = find_localconfig(&root).ok_or("localconfig.vdf not found")?;
+
+    let (shortcut_changes, steam_changes): (Vec<_>, Vec<_>) =
+        changes.into_iter().partition(|(appid, _)| is_shortcut_appid(appid));
+
+    if !steam_changes.is_empty() {
+        write_localconfig_launch(&localconfig, &steam_changes)?;
+    }
+    if !shortcut_changes.is_empty() {
+        write_shortcuts_launch(&root, &user_id, &shortcut_changes)?;
+    }
+    scan()
+}
+
+/// Surgically set LaunchOptions for real Steam games in localconfig.vdf (text VDF).
+fn write_localconfig_launch(localconfig: &Path, changes: &[(String, String)]) -> Result<(), String> {
+    let original = fs::read_to_string(localconfig).map_err(|e| format!("read localconfig.vdf: {e}"))?;
 
     let mut text = original.clone();
-    for (appid, value) in &changes {
+    for (appid, value) in changes {
         text = vdfedit::upsert_app_fields(&text, APPS_PATH, appid, &[("LaunchOptions", value)])?;
     }
 
@@ -602,7 +668,7 @@ pub fn write_launch_options(changes: Vec<(String, String)>) -> Result<LibraryDto
     if parse(&text).is_err() {
         return Err("internal: edited localconfig.vdf failed to re-parse - write aborted".into());
     }
-    for (appid, value) in &changes {
+    for (appid, value) in changes {
         let path = ["Software", "Valve", "Steam", "apps", appid.as_str(), "LaunchOptions"];
         if read_path_string(&text, &path).as_deref() != Some(value.as_str()) {
             return Err(format!("verification failed for appid {appid} - write aborted"));
@@ -610,10 +676,37 @@ pub fn write_launch_options(changes: Vec<(String, String)>) -> Result<LibraryDto
     }
 
     if text != original {
-        timestamped_backup(&localconfig)?;
-        atomic_write(&localconfig, &text)?;
+        timestamped_backup(localconfig)?;
+        atomic_write(localconfig, &text)?;
     }
-    scan()
+    Ok(())
+}
+
+/// Surgically set LaunchOptions for non-Steam shortcuts in shortcuts.vdf (binary VDF).
+fn write_shortcuts_launch(root: &Path, user_id: &str, changes: &[(String, String)]) -> Result<(), String> {
+    let path = shortcuts_path(root, user_id);
+    let original = fs::read(&path).map_err(|e| format!("read shortcuts.vdf: {e}"))?;
+
+    let mut bytes = original.clone();
+    for (appid, value) in changes {
+        let id: u32 = appid.parse().map_err(|_| format!("invalid shortcut appid {appid}"))?;
+        bytes = crate::shortcuts::set_launch_options(&bytes, id, value)?;
+    }
+
+    // Verify: re-parse the edited bytes and confirm every target reads back exactly.
+    let parsed = crate::shortcuts::parse(&bytes);
+    for (appid, value) in changes {
+        let id: u32 = appid.parse().unwrap_or(0);
+        if !parsed.iter().any(|s| s.appid == id && s.launch_options == *value) {
+            return Err(format!("verification failed for shortcut appid {appid} - write aborted"));
+        }
+    }
+
+    if bytes != original {
+        timestamped_backup(&path)?;
+        atomic_write_bytes(&path, &bytes)?;
+    }
+    Ok(())
 }
 
 /// Apply compat-tool changes (appid -> internal tool name; "default" removes the mapping)
@@ -906,6 +999,40 @@ mod tests {
         let bdir = env.home().join(".local/share/manifold/backups");
         let n = fs::read_dir(&bdir).map(|r| r.count()).unwrap_or(0);
         assert!(n >= 1, "expected a backup file");
+    }
+
+    #[test]
+    fn scan_includes_non_steam_shortcuts() {
+        let env = TestEnv::new();
+        build_test_tree(env.home());
+        set_test_running(Some(false));
+        let lib = scan().expect("scan");
+        let sc = lib.games.iter().find(|g| g.appid == "2338049609").expect("shortcut present");
+        assert_eq!(sc.name, "DoomRunner");
+        assert_eq!(sc.status, "shortcut");
+        assert_eq!(sc.launch, "gamescope %command%");
+        assert_eq!(sc.compat, "default");
+    }
+
+    #[test]
+    fn write_launch_options_edits_a_shortcut() {
+        let env = TestEnv::new();
+        let root = build_test_tree(env.home());
+        set_test_running(Some(false));
+        let scfile = root.join("userdata/123/config/shortcuts.vdf");
+        let before = fs::read(&scfile).unwrap();
+
+        write_launch_options(vec![("2338049609".into(), "mangohud %command%".into())]).unwrap();
+
+        // localconfig.vdf is untouched; the change landed in shortcuts.vdf
+        let after = fs::read(&scfile).unwrap();
+        assert_ne!(after, before);
+        let scs = crate::shortcuts::parse(&after);
+        let sc = scs.iter().find(|s| s.appid == 2_338_049_609).unwrap();
+        assert_eq!(sc.launch_options, "mangohud %command%");
+        // and a backup of the binary file was written
+        let bdir = env.home().join(".local/share/manifold/backups");
+        assert!(fs::read_dir(&bdir).map(|r| r.count()).unwrap_or(0) >= 1);
     }
 
     #[test]

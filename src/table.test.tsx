@@ -53,9 +53,9 @@ describe("Toolbar", () => {
   const props = () => ({
     search: "",
     setSearch: vi.fn(),
-    filters: { installed: false, owned: false, custom: false, forced: false },
+    filters: { installed: false, owned: false, shortcut: false, custom: false, forced: false },
     toggleFilter: vi.fn(),
-    counts: { installed: 12, owned: 2, custom: 4, forced: 0 },
+    counts: { installed: 12, owned: 2, shortcut: 3, custom: 4, forced: 0 },
     onOpenCmdk: vi.fn(),
   });
   it("types into search and toggles a filter + opens cmdk", () => {
@@ -147,7 +147,7 @@ describe("GamesTable", () => {
 describe("BulkBar", () => {
   it("renders counts and wires the actions", () => {
     const p = {
-      count: 3, installedCount: 2, ownedCount: 1,
+      count: 3, installedCount: 2, ownedCount: 1, shortcutCount: 0,
       onSetLaunch: vi.fn(), onApplyPreset: vi.fn(), onSetCompat: vi.fn(), onClearLaunch: vi.fn(), onClear: vi.fn(), disabled: false,
     };
     render(<BulkBar {...p} />);
@@ -164,7 +164,7 @@ describe("BulkBar", () => {
     expect(p.onClear).toHaveBeenCalled();
   });
   it("disables write actions when disabled", () => {
-    render(<BulkBar count={1} installedCount={1} ownedCount={0} onSetLaunch={vi.fn()} onApplyPreset={vi.fn()} onSetCompat={vi.fn()} onClearLaunch={vi.fn()} onClear={vi.fn()} disabled />);
+    render(<BulkBar count={1} installedCount={1} ownedCount={0} shortcutCount={0} onSetLaunch={vi.fn()} onApplyPreset={vi.fn()} onSetCompat={vi.fn()} onClearLaunch={vi.fn()} onClear={vi.fn()} disabled />);
     expect(screen.getByRole("button", { name: /Set launch options/ })).toBeDisabled();
   });
 });
