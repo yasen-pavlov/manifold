@@ -114,6 +114,36 @@ describe("App - launch options flow", () => {
     await waitFor(() => expect(called("set_launch_options").length).toBe(1));
     expect(called("set_launch_options")[0][1].changes[0][1]).toBe("");
   });
+
+  it("turns a 'Steam is running' write refusal into the close/reopen prompt + retry", async () => {
+    // Frontend thinks Steam is stopped (stale), but the backend refuses the first write.
+    let firstWrite = true;
+    invokeMock.mockImplementation(async (cmd: string) => {
+      switch (cmd) {
+        case "scan_library": return lib();
+        case "load_presets": return { presets: PRESETS };
+        case "load_settings": return SETTINGS;
+        case "get_system_scale": return 1;
+        case "discover_steam_roots": return [{ path: "/home/u/.steam/steam", valid: true }];
+        case "set_launch_options":
+          if (firstWrite) { firstWrite = false; throw "Steam is running - close it before writing"; }
+          return lib({ steam_running: false });
+        case "close_steam": return lib({ steam_running: false });
+        case "start_steam": return lib({ steam_running: true });
+        default: return undefined;
+      }
+    });
+    await renderApp();
+    fireEvent.click(screen.getByText("Elden Ring"));
+    fireEvent.click(screen.getByRole("button", { name: /Clear launch options/ }));
+    // not a dead-end "Write failed" - the Steam confirm dialog appears instead
+    fireEvent.click(await screen.findByRole("button", { name: /Close, apply & reopen/ }));
+    await waitFor(() => {
+      expect(called("close_steam").length).toBe(1);
+      expect(called("set_launch_options").length).toBe(2); // refused, then retried after close
+      expect(called("start_steam").length).toBe(1);
+    });
+  });
 });
 
 describe("App - compatibility flow", () => {

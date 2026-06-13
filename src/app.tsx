@@ -215,6 +215,15 @@ function App() {
     } finally { setSteamBusy(false); }
   };
 
+  // The backend refuses writes while Steam is running (it rewrites config on exit and would
+  // clobber ours). If our cached steam_running was stale, the write fails here - so flip the
+  // state and turn the dead-end error into the same close/reopen prompt, with a retry.
+  const isSteamRunningErr = (e: unknown): boolean => /steam is running/i.test(String(e));
+  const onSteamRunningWrite = (count: number, retry: () => Promise<void>) => {
+    setSteamRunning(true);
+    setSteamPrompt({ count, run: (mode) => { setSteamPrompt(null); runWrite(retry, mode); } });
+  };
+
   // changes: [[appid, value], ...]
   const writeLaunch = async (changes: Change[], { title, sub, undo }: WriteMeta = {}) => {
     try {
@@ -222,6 +231,7 @@ function App() {
       refreshFrom(lib);
       toast({ kind: 'ok', title: title ?? '', sub, undo });
     } catch (e) {
+      if (isSteamRunningErr(e)) { onSteamRunningWrite(changes.length, () => writeLaunch(changes, { title, sub, undo })); return; }
       toast({ kind: 'err', title: 'Write failed', sub: String(e) });
     }
   };
@@ -231,6 +241,7 @@ function App() {
       refreshFrom(lib);
       toast({ kind: 'ok', title: title ?? '', sub, undo });
     } catch (e) {
+      if (isSteamRunningErr(e)) { onSteamRunningWrite(changes.length, () => writeCompat(changes, { title, sub, undo })); return; }
       toast({ kind: 'err', title: 'Write failed', sub: String(e) });
     }
   };
