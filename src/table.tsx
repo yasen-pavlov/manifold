@@ -38,6 +38,7 @@ function Toolbar({ search, setSearch, filters, toggleFilter, counts, onOpenCmdk 
   const FILTERS: Array<{ id: FilterKey; label: string; ct: number }> = [
     { id: 'installed', label: 'Installed', ct: counts.installed },
     { id: 'owned', label: 'Owned-only', ct: counts.owned },
+    { id: 'shortcut', label: 'Non-Steam', ct: counts.shortcut },
     { id: 'custom', label: 'Custom launch', ct: counts.custom },
     { id: 'forced', label: 'Forced compat', ct: counts.forced },
   ];
@@ -88,6 +89,9 @@ const COLUMNS: Column[] = [
 function StatusBadge({ status }: Readonly<{ status: GameStatus }>) {
   if (status === 'installed') {
     return <span className="badge installed"><span className="dot" />Installed</span>;
+  }
+  if (status === 'shortcut') {
+    return <span className="badge shortcut"><span className="dot" />Non-Steam</span>;
   }
   return <span className="badge owned"><span className="dot" />Owned-only</span>;
 }
@@ -246,6 +250,7 @@ interface BulkBarProps {
   count: number;
   installedCount: number;
   ownedCount: number;
+  shortcutCount: number;
   onSetLaunch: () => void;
   onApplyPreset: () => void;
   onSetCompat: () => void;
@@ -253,13 +258,17 @@ interface BulkBarProps {
   onClear: () => void;
   disabled: boolean;
 }
-function BulkBar({ count, installedCount, ownedCount, onSetLaunch, onApplyPreset, onSetCompat, onClearLaunch, onClear, disabled }: Readonly<BulkBarProps>) {
+function BulkBar({ count, installedCount, ownedCount, shortcutCount, onSetLaunch, onApplyPreset, onSetCompat, onClearLaunch, onClear, disabled }: Readonly<BulkBarProps>) {
   return (
     <div className="bulkbar">
       <div className="bulk-count">
         <b className="tnum">{count}</b> selected
-        {ownedCount > 0 && (
-          <span className="bulk-sub">· {installedCount} installed · {ownedCount} owned-only</span>
+        {(ownedCount > 0 || shortcutCount > 0) && (
+          <span className="bulk-sub">
+            · {installedCount} installed
+            {ownedCount > 0 && <> · {ownedCount} owned-only</>}
+            {shortcutCount > 0 && <> · {shortcutCount} non-Steam</>}
+          </span>
         )}
       </div>
       <div className="bulk-spacer" />

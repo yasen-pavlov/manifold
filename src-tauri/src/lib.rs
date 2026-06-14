@@ -1,5 +1,6 @@
 mod appinfo;
 mod settings;
+mod shortcuts;
 mod steam;
 mod store;
 mod vdfedit;
