@@ -19,7 +19,7 @@ jobs:
     name: Push manifold-steam to AUR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set pkgver + checksum from the release tag
         id: prep
