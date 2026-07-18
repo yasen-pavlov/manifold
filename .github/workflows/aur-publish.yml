@@ -36,7 +36,7 @@ jobs:
           echo "ver=${ver}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to the AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4.1.3
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
         with:
           pkgname: manifold-steam
           pkgbuild: packaging/aur/manifold-steam/PKGBUILD
