@@ -9,8 +9,66 @@ permissions:
   contents: write
 
 jobs:
+  # Create the draft release exactly once, up front, so the four build jobs never
+  # race to create it (tauri-action issue #914) and never look it up at all. Each
+  # build job is handed the release id and uploads straight into it: in
+  # tauri-action the whole lookup path is gated on `if (tagName && !releaseId)`,
+  # so passing releaseId skips it entirely.
+  create-release:
+    name: Create draft release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - name: Create (or reuse) the draft release for this tag
+        id: create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Reuse an existing draft for this tag so re-running the workflow does
+          # not pile up duplicate drafts. Only ever matches a DRAFT: if the release
+          # is already published we want to stop, not silently add assets to it.
+          # `--paginate` applies --jq per page, so take the first line, not the
+          # concatenation of one match per page.
+          id="$(gh api "repos/${REPO}/releases" --paginate \
+                  --jq ".[] | select(.tag_name == \"${TAG}\" and .draft == true) | .id" \
+                | head -n 1)"
+
+          if [ -n "$id" ]; then
+            echo "Reusing existing draft release ${id} for ${TAG}."
+          else
+            if gh api "repos/${REPO}/releases/tags/${TAG}" >/dev/null 2>&1; then
+              echo "::error::A published release already exists for ${TAG}." \
+                   "Refusing to add assets to it. Delete it, or flip it back to a draft, then re-run."
+              exit 1
+            fi
+            body="$(cat <<'EOF'
+          Cross-platform builds of Manifold.
+
+          Note: Manifold's Steam integration currently targets Linux. The macOS and
+          Windows builds install and launch, but library scanning/writes are Linux-only
+          for now. See the README for details.
+          EOF
+          )"
+            id="$(gh api -X POST "repos/${REPO}/releases" \
+                    -f tag_name="${TAG}" \
+                    -f name="Manifold ${TAG}" \
+                    -f body="${body}" \
+                    -F draft=true \
+                    -F prerelease=false \
+                    --jq .id)"
+            echo "Created draft release ${id} for ${TAG}."
+          fi
+
+          echo "release_id=${id}" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build (${{ matrix.platform }} ${{ matrix.args }})
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -58,19 +116,29 @@ jobs:
 
       - run: npm ci
 
+      # tauri-action treats a missing releaseId as "nothing to upload to" and exits
+      # SUCCESSFULLY ("No releaseId or tagName provided, skipping all uploads..."),
+      # which would give us a green release carrying zero assets. Fail loudly, and
+      # do it before the multi-minute build rather than after.
+      - name: Verify the release id was passed through
+        shell: bash
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "::error::create-release produced an empty release_id; refusing to build."
+            exit 1
+          fi
+          echo "Uploading into release ${RELEASE_ID}."
+
       - name: Build and release
-        uses: tauri-apps/tauri-action@v1
+        # Pinned to an immutable commit: this workflow only ever runs on a tag push,
+        # so PR CI gives no signal and a mutable tag would first misbehave on a tag
+        # that is already public. Bump the SHA and the comment together.
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Manifold ${{ github.ref_name }}"
-          releaseBody: |
-            Cross-platform builds of Manifold.
-
-            Note: Manifold's Steam integration currently targets Linux. The macOS and
-            Windows builds install and launch, but library scanning/writes are Linux-only
-            for now. See the README for details.
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}

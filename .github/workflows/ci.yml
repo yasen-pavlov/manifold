@@ -51,7 +51,10 @@ jobs:
         with:
           workspaces: src-tauri
       - name: Test
-        run: cargo test --manifest-path src-tauri/Cargo.toml --verbose
+        # --locked so Cargo.lock is actually validated. Without it cargo silently
+        # re-resolves, and a dependency PR could go green on a lockfile that is not
+        # the one in the diff.
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --verbose
 
   e2e:
     name: E2E (Playwright)
