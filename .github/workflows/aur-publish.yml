@@ -36,7 +36,12 @@ jobs:
           echo "ver=${ver}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to the AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
+        # Pinned to an immutable commit. This step is handed AUR_SSH_PRIVATE_KEY and
+        # is a Docker action built from the upstream repo at run time, so a retagged
+        # v4.2.0 would run new third-party code against our AUR credentials. This
+        # workflow is never exercised by PR CI, so that would surface only at
+        # release time. Bump the SHA and the comment together.
+        uses: KSXGitHub/github-actions-deploy-aur@084b0d9b15415bf9cdb65d44dad1efe37a354050 # v4.2.0
         with:
           pkgname: manifold-steam
           pkgbuild: packaging/aur/manifold-steam/PKGBUILD
