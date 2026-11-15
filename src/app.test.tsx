@@ -92,13 +92,13 @@ describe("App - launch options flow", () => {
     await screen.findByText("Set launch options");
     fireEvent.click(catItem("PROTON_ENABLE_HDR"));
     fireEvent.click(screen.getByRole("button", { name: /Apply to 2 games/ }));
-    await waitFor(() => expect(called("set_launch_options").length).toBe(1));
+    await waitFor(() => expect(called("set_launch_options")).toHaveLength(1));
     const changes = called("set_launch_options")[0][1].changes;
     expect(changes).toHaveLength(2);
     // undo
     const undoBtn = await screen.findByRole("button", { name: /Undo/ });
     fireEvent.click(undoBtn);
-    await waitFor(() => expect(called("set_launch_options").length).toBe(2));
+    await waitFor(() => expect(called("set_launch_options")).toHaveLength(2));
   });
 
   it("opens the builder from a row launch cell", async () => {
@@ -111,7 +111,7 @@ describe("App - launch options flow", () => {
     await renderApp();
     fireEvent.click(screen.getByText("Elden Ring"));
     fireEvent.click(screen.getByRole("button", { name: /Clear launch options/ }));
-    await waitFor(() => expect(called("set_launch_options").length).toBe(1));
+    await waitFor(() => expect(called("set_launch_options")).toHaveLength(1));
     expect(called("set_launch_options")[0][1].changes[0][1]).toBe("");
   });
 
@@ -139,9 +139,9 @@ describe("App - launch options flow", () => {
     // not a dead-end "Write failed" - the Steam confirm dialog appears instead
     fireEvent.click(await screen.findByRole("button", { name: /Close, apply & reopen/ }));
     await waitFor(() => {
-      expect(called("close_steam").length).toBe(1);
-      expect(called("set_launch_options").length).toBe(2); // refused, then retried after close
-      expect(called("start_steam").length).toBe(1);
+      expect(called("close_steam")).toHaveLength(1);
+      expect(called("set_launch_options")).toHaveLength(2); // refused, then retried after close
+      expect(called("start_steam")).toHaveLength(1);
     });
   });
 });
@@ -152,7 +152,7 @@ describe("App - compatibility flow", () => {
     fireEvent.click(screen.getByText("Elden Ring"));
     fireEvent.click(screen.getByRole("button", { name: /Set compatibility…/ }));
     fireEvent.click(await screen.findByText("Proton - Experimental"));
-    await waitFor(() => expect(called("set_compat_tool").length).toBe(1));
+    await waitFor(() => expect(called("set_compat_tool")).toHaveLength(1));
   });
 
   it("opens the compat picker from a row cell", async () => {
@@ -172,7 +172,16 @@ describe("App - row menu", () => {
     expect(writeSpy).toHaveBeenCalled();
     fireEvent.click(document.querySelectorAll(".row-act")[0]);
     fireEvent.click(await screen.findByText(/Clear launch options/));
-    await waitFor(() => expect(called("set_launch_options").length).toBe(1));
+    await waitFor(() => expect(called("set_launch_options")).toHaveLength(1));
+  });
+
+  it("reports a refused clipboard write instead of claiming success", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValueOnce(new Error("denied"));
+    await renderApp();
+    fireEvent.click(document.querySelectorAll(".row-act")[0]);
+    fireEvent.click(await screen.findByText(/Copy AppID/));
+    expect(await screen.findByText("Could not copy")).toBeInTheDocument();
+    expect(screen.queryByText("Copied AppID")).not.toBeInTheDocument();
   });
 });
 
@@ -188,9 +197,9 @@ describe("App - Steam running", () => {
     // SteamConfirm appears
     fireEvent.click(await screen.findByRole("button", { name: /Close, apply & reopen/ }));
     await waitFor(() => {
-      expect(called("close_steam").length).toBe(1);
-      expect(called("set_launch_options").length).toBe(1);
-      expect(called("start_steam").length).toBe(1);
+      expect(called("close_steam")).toHaveLength(1);
+      expect(called("set_launch_options")).toHaveLength(1);
+      expect(called("start_steam")).toHaveLength(1);
     });
   });
 
@@ -198,7 +207,7 @@ describe("App - Steam running", () => {
     steamRunning = true;
     await renderApp();
     fireEvent.click(document.querySelector(".foot-state")!);
-    await waitFor(() => expect(called("close_steam").length).toBe(1));
+    await waitFor(() => expect(called("close_steam")).toHaveLength(1));
   });
 });
 
@@ -213,7 +222,7 @@ describe("App - presets tab", () => {
     // add a wrapper so the line is valid
     fireEvent.click(catItem("PROTON_ENABLE_HDR"));
     fireEvent.click(screen.getByRole("button", { name: /Save preset/ }));
-    await waitFor(() => expect(called("save_presets").length).toBe(1));
+    await waitFor(() => expect(called("save_presets")).toHaveLength(1));
   });
 
   it("edits, duplicates, and deletes a preset", async () => {
@@ -222,9 +231,9 @@ describe("App - presets tab", () => {
     const card = await screen.findByText("Native HDR");
     const cardEl = card.closest(".preset-card") as HTMLElement;
     fireEvent.click(within(cardEl).getByTitle("Duplicate"));
-    await waitFor(() => expect(called("save_presets").length).toBe(1));
+    await waitFor(() => expect(called("save_presets")).toHaveLength(1));
     fireEvent.click(within(cardEl).getByTitle("Delete"));
-    await waitFor(() => expect(called("save_presets").length).toBe(2));
+    await waitFor(() => expect(called("save_presets")).toHaveLength(2));
   });
 
   it("applies a preset to the selection via the bulk-bar picker", async () => {
@@ -233,7 +242,7 @@ describe("App - presets tab", () => {
     fireEvent.click(screen.getByRole("button", { name: /Apply preset/ }));
     // the preset picker opens; pick the seeded preset
     fireEvent.click(await screen.findByText("Native HDR"));
-    await waitFor(() => expect(called("set_launch_options").length).toBe(1));
+    await waitFor(() => expect(called("set_launch_options")).toHaveLength(1));
   });
 });
 
@@ -242,7 +251,7 @@ describe("App - settings + command palette + tabs", () => {
     await renderApp();
     fireEvent.click(screen.getByTitle("Settings"));
     fireEvent.click(await screen.findByRole("button", { name: /^Save$/ }));
-    await waitFor(() => expect(called("save_settings").length).toBe(1));
+    await waitFor(() => expect(called("save_settings")).toHaveLength(1));
   });
 
   it("opens the command palette with Ctrl+K and runs a command", async () => {
@@ -261,7 +270,7 @@ describe("App - settings + command palette + tabs", () => {
     const input = await screen.findByPlaceholderText(/Type a command/);
     fireEvent.change(input, { target: { value: "Re-scan" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(called("scan_library").length).toBe(before + 1));
+    await waitFor(() => expect(called("scan_library")).toHaveLength(before + 1));
   });
 
   it("switches to the Backups tab", async () => {
@@ -274,16 +283,12 @@ describe("App - settings + command palette + tabs", () => {
 describe("App - keyboard", () => {
   it("Ctrl+A selects all and Escape clears selection", async () => {
     await renderApp();
-    // Fire inside waitFor: the global keydown listener is re-attached on each
-    // filteredIds change, so a single event can race a stale closure. Retrying
-    // the dispatch (selectAll is idempotent) makes this deterministic.
-    await waitFor(() => {
-      fireEvent.keyDown(window, { key: "a", ctrlKey: true });
-      expect(document.querySelector(".bulkbar")).toBeInTheDocument();
-    });
-    await waitFor(() => {
-      fireEvent.keyDown(window, { key: "Escape" });
-      expect(document.querySelector(".bulkbar")).not.toBeInTheDocument();
-    });
+    // Single dispatches are safe: the global keydown listener is attached in a
+    // layout effect, so it already closes over the rendered rows / selection by
+    // the time the DOM change that renderApp waits for is observable.
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+    expect(document.querySelector(".bulkbar")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelector(".bulkbar")).not.toBeInTheDocument();
   });
 });

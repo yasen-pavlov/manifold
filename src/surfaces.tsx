@@ -23,18 +23,18 @@ function WindowControls({ side }: Readonly<{ side: 'left' | 'right' }>) {
     // macOS traffic lights: close · minimize · maximize
     return (
       <div className="tb-dots">
-        <button className="tb-dot c" onClick={close} title="Close" />
-        <button className="tb-dot m" onClick={min} title="Minimize" />
-        <button className="tb-dot x" onClick={max} title="Zoom" />
+        <button type="button" className="tb-dot c" onClick={close} title="Close" />
+        <button type="button" className="tb-dot m" onClick={min} title="Minimize" />
+        <button type="button" className="tb-dot x" onClick={max} title="Zoom" />
       </div>
     );
   }
   // Windows/Linux: minimize · maximize · close
   return (
     <div className="win-ctl">
-      <button className="wc" onClick={min} title="Minimize"><Icon name="minus" size={15} /></button>
-      <button className="wc" onClick={max} title="Maximize"><Icon name="square" size={12} /></button>
-      <button className="wc wc-close" onClick={close} title="Close"><Icon name="x" size={15} /></button>
+      <button type="button" className="wc" onClick={min} title="Minimize"><Icon name="minus" size={15} /></button>
+      <button type="button" className="wc" onClick={max} title="Maximize"><Icon name="square" size={12} /></button>
+      <button type="button" className="wc wc-close" onClick={close} title="Close"><Icon name="x" size={15} /></button>
     </div>
   );
 }
@@ -89,7 +89,7 @@ function CompatPicker({ anchor, targets, onPick, onClose }: Readonly<CompatPicke
     <Popover anchor={anchor} onClose={onClose} width={258}>
       <div className="pop-label">Compatibility · {targets.length} game{targets.length === 1 ? '' : 's'}{mixed ? ' · mixed' : ''}</div>
       {COMPAT_TOOLS.map((c) => (
-        <button key={c.id} className={'pop-item' + (current === c.id ? ' on' : '')} onClick={() => onPick(c.id)}>
+        <button type="button" key={c.id} className={'pop-item' + (current === c.id ? ' on' : '')} onClick={() => onPick(c.id)}>
           <span className="pi-check">{current === c.id ? <Icon name="check" size={13} /> : null}</span>
           <span className="pi-name">{c.name}</span>
         </button>
@@ -112,7 +112,7 @@ function PresetPicker({ anchor, presets, targets, onPick, onClose }: Readonly<Pr
       <div className="pop-label">Apply preset · {targets.length} game{targets.length === 1 ? '' : 's'}</div>
       {presets.length === 0 && <div className="pop-empty">No presets yet. Create one in the Presets tab.</div>}
       {presets.map((p) => (
-        <button key={p.id} className="pop-item preset-pick" onClick={() => onPick(p)} title={p.value}>
+        <button type="button" key={p.id} className="pop-item preset-pick" onClick={() => onPick(p)} title={p.value}>
           <Icon name="bookmark" size={13} style={{ color: 'var(--acc)', flex: 'none' }} />
           <span className="pp-main">
             <span className="pp-name">{p.name}</span>
@@ -137,14 +137,14 @@ function RowMenu({ anchor, game, onAction, onClose }: Readonly<RowMenuProps>) {
   return (
     <Popover anchor={anchor} onClose={onClose} width={216}>
       <div className="pop-label" style={{ fontFamily: 'var(--mono)', textTransform: 'none', color: 'var(--tx-lo)' }}>{game.name}</div>
-      <button className="pop-item" onClick={() => onAction('launch')}><Icon name="terminal" size={14} /><span style={{ flex: 1 }}>Set launch options…</span></button>
-      <button className="pop-item" onClick={() => onAction('compat')}><Icon name="cpu" size={14} /><span style={{ flex: 1 }}>Set compatibility…</span></button>
-      <button className="pop-item" onClick={() => onAction('applyPreset')}><Icon name="bookmark" size={14} /><span style={{ flex: 1 }}>Apply preset…</span></button>
+      <button type="button" className="pop-item" onClick={() => onAction('launch')}><Icon name="terminal" size={14} /><span style={{ flex: 1 }}>Set launch options…</span></button>
+      <button type="button" className="pop-item" onClick={() => onAction('compat')}><Icon name="cpu" size={14} /><span style={{ flex: 1 }}>Set compatibility…</span></button>
+      <button type="button" className="pop-item" onClick={() => onAction('applyPreset')}><Icon name="bookmark" size={14} /><span style={{ flex: 1 }}>Apply preset…</span></button>
       <div className="pop-sep" />
-      <button className="pop-item" onClick={() => onAction('copyLaunch')} disabled={!game.launch}><Icon name="copy" size={14} /><span style={{ flex: 1 }}>Copy launch string</span></button>
-      <button className="pop-item" onClick={() => onAction('copyId')}><Icon name="copy" size={14} /><span style={{ flex: 1 }}>Copy AppID</span></button>
+      <button type="button" className="pop-item" onClick={() => onAction('copyLaunch')} disabled={!game.launch}><Icon name="copy" size={14} /><span style={{ flex: 1 }}>Copy launch string</span></button>
+      <button type="button" className="pop-item" onClick={() => onAction('copyId')}><Icon name="copy" size={14} /><span style={{ flex: 1 }}>Copy AppID</span></button>
       <div className="pop-sep" />
-      <button className="pop-item danger" onClick={() => onAction('clear')} disabled={!game.launch}><Icon name="x" size={14} /><span style={{ flex: 1 }}>Clear launch options</span></button>
+      <button type="button" className="pop-item danger" onClick={() => onAction('clear')} disabled={!game.launch}><Icon name="x" size={14} /><span style={{ flex: 1 }}>Clear launch options</span></button>
     </Popover>
   );
 }
@@ -175,12 +175,12 @@ function SteamConfirm({ count, onChoose }: Readonly<SteamConfirmProps>) {
           </div>
         </div>
         <div className="sheet-foot" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <button className="btn ghost" onClick={() => onChoose('cancel')}>Cancel</button>
+          <button type="button" className="btn ghost" onClick={() => onChoose('cancel')}>Cancel</button>
           <div style={{ flex: 1 }} />
-          <button className="btn" onClick={() => onChoose('closed')}>
+          <button type="button" className="btn" onClick={() => onChoose('closed')}>
             <Icon name="power" size={14} />Close &amp; apply
           </button>
-          <button className="btn primary" onClick={() => onChoose('reopen')}>
+          <button type="button" className="btn primary" onClick={() => onChoose('reopen')}>
             <Icon name="refresh" size={14} />Close, apply &amp; reopen
           </button>
         </div>
@@ -205,8 +205,8 @@ function BoolSeg({ label, offLabel, onLabel, value, onChange, offHint, onHint }:
     <div className="field">
       <div className="field-cap">{label}</div>
       <div className="seg">
-        <button className={value ? '' : 'on'} onClick={() => onChange(false)}>{offLabel}</button>
-        <button className={value ? 'on' : ''} onClick={() => onChange(true)}>{onLabel}</button>
+        <button type="button" className={value ? '' : 'on'} onClick={() => onChange(false)}>{offLabel}</button>
+        <button type="button" className={value ? 'on' : ''} onClick={() => onChange(true)}>{onLabel}</button>
       </div>
       <div className="hint">{value ? onHint : offHint}</div>
     </div>
@@ -255,7 +255,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
             <div className="sh-title"><Icon name="settings" size={17} style={{ color: 'var(--acc)' }} />Settings</div>
             <div className="sh-sub">Manifold preferences · stored in <span className="mono">~/.config/manifold/settings.json</span></div>
           </div>
-          <button className="icon-btn sheet-x" onClick={onClose}><Icon name="x" size={15} /></button>
+          <button type="button" className="icon-btn sheet-x" onClick={onClose}><Icon name="x" size={15} /></button>
         </div>
 
         <div className="sheet-body">
@@ -277,12 +277,12 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
               <div className="field-cap">Detected</div>
               <div className="filters" style={{ flexWrap: 'wrap' }}>
                 {discovered.map((d) => (
-                  <button key={d.path} className={'chip' + (trimmed === d.path ? ' on' : '')} onClick={() => setRoot(d.path)} title={d.valid ? 'Valid Steam root' : 'Folder exists but no config/steamapps found'}>
+                  <button type="button" key={d.path} className={'chip' + (trimmed === d.path ? ' on' : '')} onClick={() => setRoot(d.path)} title={d.valid ? 'Valid Steam root' : 'Folder exists but no config/steamapps found'}>
                     <span className="mono" style={{ fontSize: 11 }}>{d.path}</span>
                     <span className="c-ct" style={{ color: d.valid ? 'var(--ok)' : 'var(--warn)' }}>{d.valid ? '✓' : '?'}</span>
                   </button>
                 ))}
-                <button className={'chip' + (usingAuto ? ' on' : '')} onClick={() => setRoot('')}>Auto-detect</button>
+                <button type="button" className={'chip' + (usingAuto ? ' on' : '')} onClick={() => setRoot('')}>Auto-detect</button>
               </div>
             </div>
           )}
@@ -291,8 +291,8 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
           <div className="field">
             <div className="field-cap">Starting Steam</div>
             <div className="seg">
-              <button className={silent ? 'on' : ''} onClick={() => setSilent(true)}>Silent (tray)</button>
-              <button className={silent ? '' : 'on'} onClick={() => setSilent(false)}>Normal window</button>
+              <button type="button" className={silent ? 'on' : ''} onClick={() => setSilent(true)}>Silent (tray)</button>
+              <button type="button" className={silent ? '' : 'on'} onClick={() => setSilent(false)}>Normal window</button>
             </div>
             <div className="hint">{silent ? 'Start Steam minimized to the tray (steam -silent).' : 'Start Steam with its window shown.'}</div>
           </div>
@@ -302,7 +302,7 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
             <div className="field-cap">Window-control buttons</div>
             <div className="seg">
               {WC_OPTS.map(([id, label]) => (
-                <button key={id} className={wc === id ? 'on' : ''} onClick={() => setWc(id)}>{label}</button>
+                <button type="button" key={id} className={wc === id ? 'on' : ''} onClick={() => setWc(id)}>{label}</button>
               ))}
             </div>
             <div className="hint">
@@ -330,10 +330,10 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
           <div className="field">
             <div className="field-cap">Interface scale</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="btn" onClick={() => stepScale(-0.1)} disabled={effScale <= 0.6} title="Smaller"><Icon name="minus" size={14} /></button>
+              <button type="button" className="btn" onClick={() => stepScale(-0.1)} disabled={effScale <= 0.6} title="Smaller"><Icon name="minus" size={14} /></button>
               <span className="mono tnum" style={{ minWidth: 56, textAlign: 'center', fontSize: 13 }}>{Math.round(effScale * 100)}%</span>
-              <button className="btn" onClick={() => stepScale(0.1)} disabled={effScale >= 2} title="Larger"><Icon name="plus" size={14} /></button>
-              <button className={'btn' + (scaleAuto ? ' primary' : '')} onClick={useAutoScale} title="Follow desktop scale" style={{ marginLeft: 4 }}>
+              <button type="button" className="btn" onClick={() => stepScale(0.1)} disabled={effScale >= 2} title="Larger"><Icon name="plus" size={14} /></button>
+              <button type="button" className={'btn' + (scaleAuto ? ' primary' : '')} onClick={useAutoScale} title="Follow desktop scale" style={{ marginLeft: 4 }}>
                 <Icon name="check" size={13} style={{ opacity: scaleAuto ? 1 : 0.5 }} />Auto
               </button>
             </div>
@@ -346,8 +346,8 @@ function SettingsSheet({ settings, effectiveRoot, discovered, systemScale, onPre
 
         <div className="sheet-foot">
           <div style={{ flex: 1 }} />
-          <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale, close_to_tray: closeToTray, start_minimized: startMinimized })}>
+          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn primary" onClick={() => onSave({ steam_root: trimmed, silent_start: silent, window_controls: wc, ui_scale: scaleAuto ? 0 : manualScale, close_to_tray: closeToTray, start_minimized: startMinimized })}>
             <Icon name="check" size={14} />Save
           </button>
         </div>
@@ -372,8 +372,8 @@ function Toasts({ toasts, onDismiss, onUndo }: Readonly<ToastsProps>) {
             <div className="t-title">{t.title}</div>
             {t.sub && <div className="t-sub">{t.sub}</div>}
           </div>
-          {t.undo && <button className="t-act" onClick={() => onUndo(t)}>Undo</button>}
-          <button className="b-dismiss" onClick={() => onDismiss(t.id)}><Icon name="x" size={13} /></button>
+          {t.undo && <button type="button" className="t-act" onClick={() => onUndo(t)}>Undo</button>}
+          <button type="button" className="b-dismiss" onClick={() => onDismiss(t.id)}><Icon name="x" size={13} /></button>
         </div>
       ))}
     </div>
@@ -389,8 +389,8 @@ function EmptyState({ onRetry }: Readonly<{ onRetry: () => void }>) {
       <p>Manifold scans your Steam config for installed and owned games. Point it at the right directory, then re-scan.</p>
       <div className="e-path">~/.steam/steam/steamapps · <span style={{ color: 'var(--warn)' }}>not found</span></div>
       <div className="e-acts">
-        <button className="btn"><Icon name="folder" size={14} />Choose library folder…</button>
-        <button className="btn primary" onClick={onRetry}><Icon name="refresh" size={14} />Re-scan</button>
+        <button type="button" className="btn"><Icon name="folder" size={14} />Choose library folder…</button>
+        <button type="button" className="btn primary" onClick={onRetry}><Icon name="refresh" size={14} />Re-scan</button>
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ function BackupsView({ onRestore }: Readonly<{ onRestore: (b: Backup) => void }>
             <h1>Backups</h1>
             <p>Every write snapshots the affected <span className="mono" style={{ fontSize: 12 }}>localconfig.vdf</span> entries first. Restore any point in time.</p>
           </div>
-          <div className="ph-actions"><button className="btn"><Icon name="download" size={14} />Export all</button></div>
+          <div className="ph-actions"><button type="button" className="btn"><Icon name="download" size={14} />Export all</button></div>
         </div>
         {BACKUPS.map((b) => (
           <div className="card" key={b.id}>
@@ -32,7 +32,7 @@ function BackupsView({ onRestore }: Readonly<{ onRestore: (b: Backup) => void }>
                 <div className="card-name mono" style={{ fontSize: 12.5 }}>{b.when}</div>
                 <div className="card-desc">{b.note} · <span className="mono" style={{ color: 'var(--tx-mid)' }}>{b.games} game{b.games === 1 ? '' : 's'}</span></div>
               </div>
-              <button className="btn" onClick={() => onRestore(b)}><Icon name="rotate" size={14} />Restore</button>
+              <button type="button" className="btn" onClick={() => onRestore(b)}><Icon name="rotate" size={14} />Restore</button>
             </div>
           </div>
         ))}
