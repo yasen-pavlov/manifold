@@ -16,25 +16,25 @@
   "dependencies": {
     "@fontsource/geist-sans": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-opener": "^2.7.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.0",
-    "@tauri-apps/cli": "^2",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^6.0.4",
-    "@vitest/coverage-v8": "^4.1.10",
-    "jsdom": "^29.1.1",
-    "typescript": "~6.0.3",
-    "vite": "^8.1.5",
-    "vitest": "^4.1.8"
+    "@playwright/test": "^1.65.1",
+    "@tauri-apps/cli": "^2.12.4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.10",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "jsdom": "^31.0.1",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
   }
 }
