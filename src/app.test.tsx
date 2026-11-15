@@ -174,6 +174,15 @@ describe("App - row menu", () => {
     fireEvent.click(await screen.findByText(/Clear launch options/));
     await waitFor(() => expect(called("set_launch_options")).toHaveLength(1));
   });
+
+  it("reports a refused clipboard write instead of claiming success", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValueOnce(new Error("denied"));
+    await renderApp();
+    fireEvent.click(document.querySelectorAll(".row-act")[0]);
+    fireEvent.click(await screen.findByText(/Copy AppID/));
+    expect(await screen.findByText("Could not copy")).toBeInTheDocument();
+    expect(screen.queryByText("Copied AppID")).not.toBeInTheDocument();
+  });
 });
 
 describe("App - Steam running", () => {

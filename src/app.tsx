@@ -224,7 +224,7 @@ function App() {
   const isSteamRunningErr = (e: unknown): boolean => /steam is running/i.test(String(e));
   const onSteamRunningWrite = (count: number, retry: () => Promise<void>) => {
     setSteamRunning(true);
-    setSteamPrompt({ count, run: (mode) => { setSteamPrompt(null); runWrite(retry, mode); } });
+    setSteamPrompt({ count, run: (mode) => { setSteamPrompt(null); void runWrite(retry, mode); } });
   };
 
   // changes: [[appid, value], ...]
@@ -252,9 +252,9 @@ function App() {
   // If Steam is running, prompt to close (and optionally reopen); else write directly.
   const applyWrite = (count: number, writeThunk: () => Promise<void>) => {
     if (steamRunning) {
-      setSteamPrompt({ count, run: (mode) => { setSteamPrompt(null); runWrite(writeThunk, mode); } });
+      setSteamPrompt({ count, run: (mode) => { setSteamPrompt(null); void runWrite(writeThunk, mode); } });
     } else {
-      writeThunk();
+      void writeThunk();
     }
   };
 
@@ -282,8 +282,8 @@ function App() {
   const onUndo = (t: Toast) => {
     dismissToast(t.id);
     if (!t.undo) return;
-    if (t.undo.kind === 'launch') writeLaunch(t.undo.changes, { title: 'Reverted launch options' });
-    else if (t.undo.kind === 'compat') writeCompat(t.undo.changes, { title: 'Reverted compatibility' });
+    if (t.undo.kind === 'launch') void writeLaunch(t.undo.changes, { title: 'Reverted launch options' });
+    else if (t.undo.kind === 'compat') void writeCompat(t.undo.changes, { title: 'Reverted compatibility' });
   };
 
   /* ---------- preset CRUD (persisted to ~/.config/manifold/presets.json) ---------- */
@@ -313,6 +313,15 @@ function App() {
   const startFromApply = (_kind: string, pills: Pill[]) => setBuilder({ mode: 'preset', preset: null, initialPills: pills.map((p) => ({ ...p })) });
 
   /* ---------- row menu actions ---------- */
+  // Confirm a copy only once the clipboard write has landed; it can be refused.
+  const copyText = async (text: string, ok: ToastInput) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(ok);
+    } catch (e) {
+      toast({ kind: 'err', title: 'Could not copy', sub: String(e) });
+    }
+  };
   const rowAction = (action: RowAction) => {
     if (!rowMenu) return;
     const g = rowMenu.game; setRowMenu(null);
@@ -320,8 +329,8 @@ function App() {
     else if (action === 'compat') setCompatPop({ anchor: rowMenu.anchor, targets: [g] });
     else if (action === 'applyPreset') setPresetPop({ anchor: rowMenu.anchor, targets: [g] });
     else if (action === 'clear') clearLaunch([g.id]);
-    else if (action === 'copyLaunch') { navigator.clipboard?.writeText(g.launch); toast({ kind: 'ok', title: 'Copied launch string' }); }
-    else if (action === 'copyId') { navigator.clipboard?.writeText(g.appid); toast({ kind: 'ok', title: 'Copied AppID', sub: g.appid }); }
+    else if (action === 'copyLaunch') void copyText(g.launch, { kind: 'ok', title: 'Copied launch string' });
+    else if (action === 'copyId') void copyText(g.appid, { kind: 'ok', title: 'Copied AppID', sub: g.appid });
   };
 
   /* ---------- commands ---------- */
@@ -375,12 +384,12 @@ function App() {
     }
   }, []);
 
-  aE(() => { loadLibrary({ quiet: true }); }, [loadLibrary]);
+  aE(() => { void loadLibrary({ quiet: true }); }, [loadLibrary]);
 
   /* ---------- load persisted presets/options from the backend ---------- */
   aE(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const store = await invoke<{ presets?: Preset[] } | null>('load_presets');
         if (cancelled || !store) return;
@@ -397,7 +406,7 @@ function App() {
   /* ---------- load settings + discovered Steam roots ---------- */
   aE(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const s = await invoke<Settings | null>('load_settings');
         let sys = 0;

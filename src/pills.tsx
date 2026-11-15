@@ -418,7 +418,14 @@ function PillLine({ pills, flagged, onChange }: Readonly<{ pills: Pill[]; flagge
    ============================================================ */
 function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onRawChange }: Readonly<{ finalStr: string; validation: Validation; rawMode: boolean; onToggleRaw: () => void; rawText: string; onRawChange: (v: string) => void }>) {
   const [copied, setCopied] = plS(false);
-  const copy = () => { navigator.clipboard?.writeText(finalStr); setCopied(true); setTimeout(() => setCopied(false), 1400); };
+  // Flash "copied" only once the clipboard write has landed; a refused write
+  // leaves the label as "copy".
+  const copy = () => {
+    navigator.clipboard?.writeText(finalStr).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 1400); },
+      () => setCopied(false),
+    );
+  };
   const lvl = validation.level;
   const warnCt = validation.issues.filter((i) => i.level === 'warn').length;
   return (

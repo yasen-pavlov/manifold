@@ -207,6 +207,17 @@ describe("BuilderSurface - apply context", () => {
     render(<BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("mangohud %command%") }} />);
     await user.click(qs(".copy-btn"));
     expect(writeSpy).toHaveBeenCalledWith("mangohud %command%");
+    expect(await screen.findByText("copied")).toBeInTheDocument();
+  });
+
+  it("does not claim a copy the clipboard refused", async () => {
+    const user = userEvent.setup();
+    const writeSpy = vi.spyOn(navigator.clipboard, "writeText").mockRejectedValueOnce(new Error("denied"));
+    render(<BuilderSurface {...baseProps()} context={{ mode: "apply", targets: [game()], initialPills: parseLine("mangohud %command%") }} />);
+    await user.click(qs(".copy-btn"));
+    const refused: Promise<void> = writeSpy.mock.results[writeSpy.mock.results.length - 1].value;
+    await refused.catch(() => {});
+    expect(screen.queryByText("copied")).not.toBeInTheDocument();
   });
 
   it("disables apply when the line is empty", () => {
