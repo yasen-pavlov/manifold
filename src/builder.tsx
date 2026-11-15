@@ -132,8 +132,8 @@ function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canAp
       <div className="builder-foot">
         <div style={{ fontSize: 11.5, color: 'var(--tx-faint)', whiteSpace: 'nowrap' }}>{presetStatusHint(canSave, name, hasError)}</div>
         <div className="bf-spacer" />
-        <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary" disabled={!canSave} onClick={() => onSavePreset({ id: context.preset?.id, name: name.trim(), desc: desc.trim(), value: finalStr })}>
+        <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn primary" disabled={!canSave} onClick={() => onSavePreset({ id: context.preset?.id, name: name.trim(), desc: desc.trim(), value: finalStr })}>
           <Icon name="save" size={14} />{context.preset?.id ? 'Save changes' : 'Save preset'}
         </button>
       </div>
@@ -141,12 +141,12 @@ function BuilderFooter({ isPreset, context, name, desc, finalStr, canSave, canAp
   }
   return (
     <div className="builder-foot">
-      <button className="btn ghost" onClick={() => onStartFromPreset?.('save', pills)} title="Save this line as a reusable preset" disabled={!canApply}>
+      <button type="button" className="btn ghost" onClick={() => onStartFromPreset?.('save', pills)} title="Save this line as a reusable preset" disabled={!canApply}>
         <Icon name="bookmark" size={14} />Save as preset
       </button>
       <div className="bf-spacer" />
-      <button className="btn ghost" onClick={onClose}>Cancel</button>
-      <button className="btn primary" disabled={!canApply} onClick={() => onApply(finalStr)}>
+      <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+      <button type="button" className="btn primary" disabled={!canApply} onClick={() => onApply(finalStr)}>
         <Icon name="check" size={14} />{`Apply to ${targetCount} game${targetCount === 1 ? '' : 's'}`}
       </button>
     </div>
@@ -228,7 +228,7 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
                 <BuilderHeaderSub isPreset={isPreset} targetCount={targetCount} mixedLines={mixedLines} />
               </div>
             </div>
-            <button className="icon-btn" onClick={onClose} style={{ marginLeft: 'auto' }}><Icon name="x" size={15} /></button>
+            <button type="button" className="icon-btn" onClick={onClose} style={{ marginLeft: 'auto' }}><Icon name="x" size={15} /></button>
           </div>
 
           <div className="builder-body">
@@ -245,8 +245,8 @@ function BuilderSurface({ context, presets, onApply, onSavePreset, onClose, onSt
                   <Icon name="layers" size={13} />Launch line<span className="cbl-ct">{blocks.length} block{blocks.length === 1 ? '' : 's'}</span>
                   <span className="cbl-line" />
                   <span className="cbl-act">
-                    <button className="btn ghost" style={{ height: 24, padding: '0 8px', fontSize: 11 }} onClick={() => setStartOpen((v) => !v)}><Icon name="bookmark" size={12} />Start from preset</button>
-                    {blocks.length > 0 && <button className="btn ghost" style={{ height: 24, padding: '0 8px', fontSize: 11 }} onClick={() => { setPills(parseLine('')); setRawMode(false); }}><Icon name="x" size={12} />Clear</button>}
+                    <button type="button" className="btn ghost" style={{ height: 24, padding: '0 8px', fontSize: 11 }} onClick={() => setStartOpen((v) => !v)}><Icon name="bookmark" size={12} />Start from preset</button>
+                    {blocks.length > 0 && <button type="button" className="btn ghost" style={{ height: 24, padding: '0 8px', fontSize: 11 }} onClick={() => { setPills(parseLine('')); setRawMode(false); }}><Icon name="x" size={12} />Clear</button>}
                   </span>
                 </div>
 
@@ -301,7 +301,7 @@ function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete }: Readonly
             <p>One unified list. A preset is a saved launch line, from a single block to a full stack.</p>
           </div>
           <div className="ph-actions">
-            <button className="btn primary" onClick={() => onNew()}><Icon name="plus" size={14} />New preset</button>
+            <button type="button" className="btn primary" onClick={() => onNew()}><Icon name="plus" size={14} />New preset</button>
           </div>
         </div>
 
@@ -329,9 +329,9 @@ function PresetsList({ presets, onNew, onEdit, onDuplicate, onDelete }: Readonly
                   <div className="pc-line mono"><MiniLine value={p.value} /></div>
                 </div>
                 <div className="pc-acts">
-                  <button className="icon-btn" title="Edit" onClick={() => onEdit(p)}><Icon name="edit" size={14} /></button>
-                  <button className="icon-btn" title="Duplicate" onClick={() => onDuplicate(p)}><Icon name="copy" size={14} /></button>
-                  <button className="icon-btn" title="Delete" onClick={() => onDelete(p)}><Icon name="trash" size={14} /></button>
+                  <button type="button" className="icon-btn" title="Edit" onClick={() => onEdit(p)}><Icon name="edit" size={14} /></button>
+                  <button type="button" className="icon-btn" title="Duplicate" onClick={() => onDuplicate(p)}><Icon name="copy" size={14} /></button>
+                  <button type="button" className="icon-btn" title="Delete" onClick={() => onDelete(p)}><Icon name="trash" size={14} /></button>
                 </div>
               </div>
             </div>

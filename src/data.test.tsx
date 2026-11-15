@@ -87,7 +87,7 @@ describe("compatName + setCompatTools", () => {
     const before = COMPAT_TOOLS.length;
     setCompatTools([]);
     setCompatTools(null);
-    expect(COMPAT_TOOLS.length).toBe(before);
+    expect(COMPAT_TOOLS).toHaveLength(before);
   });
 });
 
@@ -95,7 +95,7 @@ describe("static data", () => {
   it("ships mock games, example presets, and a library path", () => {
     expect(GAMES.length).toBeGreaterThan(0);
     expect(GAMES[0]).toHaveProperty("appid");
-    expect(MOCK_PRESETS.length).toBe(3);
+    expect(MOCK_PRESETS).toHaveLength(3);
     expect(LIBRARY_PATH).toContain("steam");
   });
   it("no mock game references a retired wrapper script", () => {

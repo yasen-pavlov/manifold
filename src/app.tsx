@@ -1,5 +1,5 @@
 // app.tsx - Manifold main: state, routing, window chrome, keyboard
-import { useState as aS, useEffect as aE, useMemo as aM, useCallback as aC } from "react";
+import { useState as aS, useEffect as aE, useLayoutEffect as aLE, useMemo as aM, useCallback as aC } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./icons";
 import { GAMES, MOCK_PRESETS, compatName, setCompatTools } from "./data";
@@ -451,7 +451,11 @@ function App() {
   }, []);
 
   /* ---------- keyboard ---------- */
-  aE(() => {
+  // Layout effect, not a passive one: the handler closes over the current rows
+  // and selection, and a passive effect re-attaches it a task after the commit,
+  // leaving a window where a keypress still runs the previous render's closure
+  // (Ctrl+A selecting the pre-scan, empty row set).
+  aLE(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdk((v) => !v); }
       else if (e.key === 'Escape') {
@@ -484,7 +488,7 @@ function App() {
         <div className="tb-spacer" data-tauri-drag-region />
         <div className="tabs">
           {TABS.map(([id, label, icon]) => (
-            <button key={id} className={'tab' + (tab === id ? ' active' : '')} onClick={() => setTab(id)}>
+            <button type="button" key={id} className={'tab' + (tab === id ? ' active' : '')} onClick={() => setTab(id)}>
               <Icon name={icon} size={14} />{label}
               {id === 'library' && <span className="badge-count">{games.length}</span>}
               {id === 'presets' && <span className="badge-count">{presets.length}</span>}
@@ -492,8 +496,8 @@ function App() {
           ))}
         </div>
         <div className="tb-spacer" data-tauri-drag-region />
-        <button className="tb-btn" onClick={() => setCmdk(true)}><Icon name="command" size={14} />Search<span className="kbd">⌘K</span></button>
-        <button className="icon-btn" title="Settings" onClick={() => setSettingsOpen(true)}><Icon name="settings" size={15} /></button>
+        <button type="button" className="tb-btn" onClick={() => setCmdk(true)}><Icon name="command" size={14} />Search<span className="kbd">⌘K</span></button>
+        <button type="button" className="icon-btn" title="Settings" onClick={() => setSettingsOpen(true)}><Icon name="settings" size={15} /></button>
         {controlsSide === 'right' && <WindowControls side="right" />}
       </div>
 

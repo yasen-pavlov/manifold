@@ -80,9 +80,9 @@ function InputEditor({ anchor, pill, onChange, onClose }: Readonly<{ anchor: Anc
           <div className="ep-hint">Preview: <span style={{ fontFamily: 'var(--mono)', color: 'var(--acc-text)' }}>{pill.key}={v}</span></div>
         </div>
         <div className="ep-foot">
-          <button className="btn ghost" style={{ height: 28 }} onClick={onClose}>Cancel</button>
+          <button type="button" className="btn ghost" style={{ height: 28 }} onClick={onClose}>Cancel</button>
           <div style={{ flex: 1 }} />
-          <button className="btn primary" style={{ height: 28 }} onClick={commit}><Icon name="check" size={13} />Set</button>
+          <button type="button" className="btn primary" style={{ height: 28 }} onClick={commit}><Icon name="check" size={13} />Set</button>
         </div>
       </div>
     </Popover>
@@ -196,9 +196,9 @@ function ToolPopover({ anchor, pill, onChange, onClose }: Readonly<{ anchor: Anc
           <div className="tp-preview-str mono"><ToolTokenPreview pill={draft} /></div>
         </div>
         <div className="ep-foot">
-          <button className="btn ghost" style={{ height: 28 }} onClick={onClose}>Cancel</button>
+          <button type="button" className="btn ghost" style={{ height: 28 }} onClick={onClose}>Cancel</button>
           <div style={{ flex: 1 }} />
-          <button className="btn primary" style={{ height: 28 }} onClick={() => { onChange({ cfg, extra }); onClose(); }}><Icon name="check" size={13} />Apply</button>
+          <button type="button" className="btn primary" style={{ height: 28 }} onClick={() => { onChange({ cfg, extra }); onClose(); }}><Icon name="check" size={13} />Apply</button>
         </div>
       </div>
     </Popover>
@@ -429,7 +429,7 @@ function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onR
           <span className="pb-zone">pre-command</span><span className="pb-zone pb-zone-cmd">%command%</span><span className="pb-zone">post</span>
         </span>
         <span className="pb-spacer" />
-        <button className={'raw-toggle' + (rawMode ? ' on' : '')} onClick={onToggleRaw}><Icon name="terminal" size={12} />{rawMode ? 'Done editing' : 'Edit raw'}</button>
+        <button type="button" className={'raw-toggle' + (rawMode ? ' on' : '')} onClick={onToggleRaw}><Icon name="terminal" size={12} />{rawMode ? 'Done editing' : 'Edit raw'}</button>
       </div>
       <div className={'prev-well lvl-' + lvl}>
         {rawMode
@@ -439,7 +439,7 @@ function PreviewBlock({ finalStr, validation, rawMode, onToggleRaw, rawText, onR
           {lvl === 'ok' && <span className="vstat ok"><Icon name="checkCircle" size={12} />valid · one %command%</span>}
           {lvl === 'warn' && <span className="vstat warn"><Icon name="alert" size={12} />{warnCt} warning{warnCt === 1 ? '' : 's'}</span>}
           {lvl === 'error' && <span className="vstat error"><Icon name="xCircle" size={12} />{validation.issues.find((i) => i.level === 'error')?.msg.split('.')[0]}</span>}
-          <button className="copy-btn" onClick={copy}><Icon name={copied ? 'check' : 'copy'} size={12} />{copied ? 'copied' : 'copy'}</button>
+          <button type="button" className="copy-btn" onClick={copy}><Icon name={copied ? 'check' : 'copy'} size={12} />{copied ? 'copied' : 'copy'}</button>
         </div>
       </div>
       {validation.issues.length > 0 && (

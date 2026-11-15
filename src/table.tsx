@@ -19,7 +19,7 @@ function Check({ state, onClick }: Readonly<{ state: CheckState; onClick: (e: Re
     icon = <Icon name="check" size={11} stroke={3} />;
   }
   return (
-    <button className={cls} onClick={(e) => { e.stopPropagation(); onClick(e); }}>
+    <button type="button" className={cls} onClick={(e) => { e.stopPropagation(); onClick(e); }}>
       {icon}
     </button>
   );
@@ -53,18 +53,18 @@ function Toolbar({ search, setSearch, filters, toggleFilter, counts, onOpenCmdk 
           spellCheck={false}
         />
         {search && (
-          <button className="s-clear" onClick={() => setSearch('')}><Icon name="x" size={13} /></button>
+          <button type="button" className="s-clear" onClick={() => setSearch('')}><Icon name="x" size={13} /></button>
         )}
       </div>
       <div className="filters">
         {FILTERS.map((f) => (
-          <button key={f.id} className={'chip' + (filters[f.id] ? ' on' : '')} onClick={() => toggleFilter(f.id)}>
+          <button type="button" key={f.id} className={'chip' + (filters[f.id] ? ' on' : '')} onClick={() => toggleFilter(f.id)}>
             {f.label}<span className="c-ct">{f.ct}</span>
           </button>
         ))}
       </div>
       <div className="toolbar-spacer" />
-      <button className="icon-btn" title="Command palette  ⌘K" onClick={onOpenCmdk}>
+      <button type="button" className="icon-btn" title="Command palette  ⌘K" onClick={onOpenCmdk}>
         <Icon name="command" size={15} />
       </button>
     </div>
@@ -138,6 +138,7 @@ function GameRow({ game, presets, selected, onToggle, onCompatClick, onRowMenu, 
       <td className="col-status"><StatusBadge status={game.status} /></td>
       <td className="col-compat">
         <button
+          type="button"
           className={'compat-cell mono' + (game.compat === 'default' ? ' is-default' : '')}
           onClick={(e) => { e.stopPropagation(); onCompatClick(e, game); }}
         >
@@ -158,7 +159,7 @@ function GameRow({ game, presets, selected, onToggle, onCompatClick, onRowMenu, 
           >
             <LaunchCell value={game.launch} />
           </button>
-          <button className="row-act" onClick={(e) => { e.stopPropagation(); onRowMenu(e, game); }}>
+          <button type="button" className="row-act" onClick={(e) => { e.stopPropagation(); onRowMenu(e, game); }}>
             <Icon name="more" size={15} />
           </button>
         </div>
@@ -272,19 +273,19 @@ function BulkBar({ count, installedCount, ownedCount, shortcutCount, onSetLaunch
         )}
       </div>
       <div className="bulk-spacer" />
-      <button className="btn ghost" onClick={onClearLaunch} disabled={disabled}>
+      <button type="button" className="btn ghost" onClick={onClearLaunch} disabled={disabled}>
         <Icon name="x" size={14} />Clear launch options
       </button>
-      <button className="btn" onClick={onSetCompat} disabled={disabled}>
+      <button type="button" className="btn" onClick={onSetCompat} disabled={disabled}>
         <Icon name="cpu" size={14} />Set compatibility…
       </button>
-      <button className="btn" onClick={onApplyPreset} disabled={disabled}>
+      <button type="button" className="btn" onClick={onApplyPreset} disabled={disabled}>
         <Icon name="bookmark" size={14} />Apply preset…
       </button>
-      <button className="btn primary" onClick={onSetLaunch} disabled={disabled}>
+      <button type="button" className="btn primary" onClick={onSetLaunch} disabled={disabled}>
         <Icon name="terminal" size={14} />Set launch options…
       </button>
-      <button className="bulk-clear" onClick={onClear}>
+      <button type="button" className="bulk-clear" onClick={onClear}>
         <Icon name="x" size={13} />Deselect
       </button>
     </div>

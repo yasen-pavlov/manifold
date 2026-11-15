@@ -93,9 +93,9 @@ function Catalogue({ pills, onAdd, onAddCustom, onAddArg }: Readonly<CataloguePr
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search building blocks…" spellCheck={false} />
         </div>
         <div className="cat-tabs">
-          <button className={'cat-tab' + (cat === 'all' ? ' on' : '')} onClick={() => setCat('all')}>All</button>
+          <button type="button" className={'cat-tab' + (cat === 'all' ? ' on' : '')} onClick={() => setCat('all')}>All</button>
           {CATEGORIES.map((c) => (
-            <button key={c.id} className={'cat-tab' + (cat === c.id ? ' on' : '') + (c.post ? ' post' : '')} onClick={() => setCat(c.id)}>
+            <button type="button" key={c.id} className={'cat-tab' + (cat === c.id ? ' on' : '') + (c.post ? ' post' : '')} onClick={() => setCat(c.id)}>
               <Icon name={c.icon} size={12} />{c.name}
             </button>
           ))}
@@ -135,7 +135,7 @@ function Catalogue({ pills, onAdd, onAddCustom, onAddArg }: Readonly<CataloguePr
                     placeholder="KEY=VALUE or a command prefix"
                     spellCheck={false}
                   />
-                  <button className="btn primary" style={{ height: 28 }} disabled={!customVal.trim()} onClick={() => { onAddCustom(customVal.trim()); setCustomVal(''); }}>
+                  <button type="button" className="btn primary" style={{ height: 28 }} disabled={!customVal.trim()} onClick={() => { onAddCustom(customVal.trim()); setCustomVal(''); }}>
                     <Icon name="plus" size={13} />Add
                   </button>
                 </div>
