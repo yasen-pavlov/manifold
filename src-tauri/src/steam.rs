@@ -596,7 +596,7 @@ fn timestamped_backup(src: &Path) -> Result<PathBuf, String> {
         .unwrap_or(0);
     let dir = home().join(".local/share/manifold/backups");
     fs::create_dir_all(&dir).map_err(|e| format!("create backup dir: {e}"))?;
-    let stem = src.file_name().and_then(|s| s.to_str()).unwrap_or("file.vdf");
+    let stem = src.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("file.vdf");
     let dst = dir.join(format!("{stem}.{ts}.bak"));
     fs::copy(src, &dst).map_err(|e| format!("write backup: {e}"))?;
     Ok(dst)
