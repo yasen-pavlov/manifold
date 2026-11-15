@@ -62,9 +62,12 @@ interface IconProps {
   style?: CSSProperties;
 }
 
+// Icons are decorative: the control they sit in carries the accessible name
+// (visible text, `title`, or `aria-label`), so the glyph is hidden from AT.
 function Icon({ name, size = 16, stroke = 1.75, className = '', style = {} }: Readonly<IconProps>) {
   return (
     <svg
+      aria-hidden="true"
       width={size} height={size} viewBox="0 0 24 24"
       fill="none" stroke="currentColor" strokeWidth={stroke}
       strokeLinecap="round" strokeLinejoin="round"
